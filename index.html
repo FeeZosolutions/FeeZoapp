@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>FeeZoapp</title>
+<title>Meelkazhani Silambam Academy</title>
 
 <!-- PWA -->
 <link rel="manifest" href="manifest.json">
@@ -21,56 +21,40 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<!-- Firebase Auth SDK -->
+<!-- Cloudflare Turnstile CAPTCHA -->
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+<!-- Supabase Client -->
 <script type="module">
-  import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js';
-  import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js';
-  import { initializeAppCheck, ReCaptchaV3Provider, getToken } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-app-check.js';
+  import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-  // ── YOUR FIREBASE CONFIG (safe to have here — Auth token protects data) ──
-  const firebaseConfig = {
-    apiKey:            "AIzaSyCyX7pyUjX-CifHnJ0tRLs-Cg_ttD5klxQ",
-    authDomain:        "feez0-54a9c.firebaseapp.com",
-    databaseURL:       "https://feez0-54a9c-default-rtdb.asia-southeast1.firebasedatabase.app",
-    projectId:         "feez0-54a9c",
-    storageBucket:     "feez0-54a9c.firebasestorage.app",
-    messagingSenderId: "147120118325",
-    appId:             "1:147120118325:web:892e638c5e960c8d2cef7c",
-    measurementId:     "G-4488RZM7Q3"
+  // ── YOUR SUPABASE CONFIG (anon key is public — RLS protects the data) ──
+  const SUPABASE_URL = 'https://qdjejudzxwuujjnqmutg.supabase.co';
+  const SUPABASE_ANON_KEY = 'sb_publishable_zNw6KFhEj5CaCdAA_d6u8w_6wQotlgo';
+
+  const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: false,
+      storageKey: 'sac_supabase_auth'
+    }
+  });
+
+  // Expose to global scope so non-module scripts can use it
+  window._sb = supabase;
+
+  // Auth helpers — mirror the old Firebase function names so the rest of the app keeps working
+  window._fbSignIn = (email, password, captchaToken) =>
+    supabase.auth.signInWithPassword({ email, password, options: captchaToken ? { captchaToken } : {} });
+  window._fbSignOut = () => supabase.auth.signOut();
+  window._onAuthStateChanged = (cb) => {
+    supabase.auth.getSession().then(({ data }) => cb(data.session ? data.session.user : null));
+    supabase.auth.onAuthStateChange((_event, session) => cb(session ? session.user : null));
   };
-
-  const app  = initializeApp(firebaseConfig);
-
-  // ── APP CHECK (reCAPTCHA v3) ──
-  // Replace 'YOUR_RECAPTCHA_SITE_KEY' with the site key from
-  // Firebase Console → App Check → register web app → reCAPTCHA v3.
-  try {
-    const appCheck = initializeAppCheck(app, {
-      provider: new ReCaptchaV3Provider('6LcgpCAtAAAAAFFkiBfD6XumWaK5r8dXGz3ryM58'),
-      isTokenAutoRefreshEnabled: true
-    });
-    // Expose a helper so REST calls can attach the App Check token
-    window._fbGetAppCheckToken = async () => {
-      try {
-        const result = await getToken(appCheck, /* forceRefresh */ false);
-        return result && result.token ? result.token : '';
-      } catch (e) {
-        console.warn('App Check token fetch failed:', e);
-        return '';
-      }
-    };
-  } catch (e) {
-    console.warn('App Check init skipped:', e);
-  }
-
-  const auth = getAuth(app);
-
-  // Expose to global scope so non-module scripts can use them
-  window._fbAuth           = auth;
-  window._fbDatabaseURL     = firebaseConfig.databaseURL; // only the URL is exposed globally, not the full config
-  window._fbSignIn         = (email, password) => signInWithEmailAndPassword(auth, email, password);
-  window._fbSignOut        = () => signOut(auth);
-  window._onAuthStateChanged = (cb) => onAuthStateChanged(auth, cb);
+  window._sbCurrentUser = async () => {
+    const { data } = await supabase.auth.getUser();
+    return data ? data.user : null;
+  };
 </script>
 <style>
 :root{
@@ -452,6 +436,10 @@ body { font-family: 'Poppins', 'Segoe UI', 'Noto Sans', Roboto, 'Arial Unicode M
         <button type="button" class="login-eye" onclick="toggleLoginPass()" title="Show/hide password"><svg viewBox="0 0 24 24" fill="none" stroke="#e8392f" stroke-width="2" width="17" height="17"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg></button>
       </div>
     </div>
+    <!-- Cloudflare Turnstile CAPTCHA (bot protection) -->
+    <div id="turnstileWidget" class="cf-turnstile" data-sitekey="0x4AAAAAADl5-__bpO6ektL1"
+         data-callback="onTurnstileSuccess" data-expired-callback="onTurnstileExpired"
+         style="margin:10px 0;display:flex;justify-content:center;"></div>
     <button class="btn-login" id="loginBtn" onclick="doLogin()">Sign In to Portal</button>
     <div class="login-support" id="loginSupport"></div>
     <div style="text-align:center;margin-top:16px;font-size:11px;color:var(--gray);opacity:.8;">© 2026 FeeZo Solutions · v3</div>
@@ -1012,6 +1000,7 @@ body { font-family: 'Poppins', 'Segoe UI', 'Noto Sans', Roboto, 'Arial Unicode M
       <div class="card admin-only" id="userCard">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
           <div class="section-title" style="margin-bottom:0;font-size:12px;">🔑 User Management</div>
+          <button class="btn btn-primary btn-xs" onclick="openAddUserModal('staff')">+ Add Staff</button>
         </div>
         <div id="userListWrap"></div>
       </div>
@@ -1133,6 +1122,25 @@ body { font-family: 'Poppins', 'Segoe UI', 'Noto Sans', Roboto, 'Arial Unicode M
 </div><!-- end #app -->
 
 <!-- ===== MODALS ===== -->
+
+<!-- CHANGE MY PASSWORD -->
+<div class="modal-overlay" id="modalMyPass">
+  <div class="modal">
+    <div class="modal-title"><span>🔑 Change My Password</span><button class="modal-close" onclick="closeModal('modalMyPass')">×</button></div>
+    <div class="form-group"><label class="form-label">New Password <span style="color:var(--gray);font-size:10px;">(min 6 characters)</span></label><input type="password" class="form-input" id="myPassNew" placeholder="Enter new password"></div>
+    <div class="form-group"><label class="form-label">Confirm New Password</label><input type="password" class="form-input" id="myPassConfirm" placeholder="Re-enter new password"></div>
+    <div id="myPassError" style="display:none;color:var(--red);font-size:12px;margin-bottom:10px;"></div>
+    <button class="btn btn-primary" style="width:100%;padding:12px;" onclick="doChangeMyPassword()">💾 Update Password</button>
+  </div>
+</div>
+
+<!-- STUDENT DETAIL POPUP -->
+<div class="modal-overlay" id="modalStudentDetail">
+  <div class="modal">
+    <div class="modal-title"><span>👤 Student Details</span><button class="modal-close" onclick="closeModal('modalStudentDetail')">×</button></div>
+    <div id="studentDetailBody"></div>
+  </div>
+</div>
 
 <!-- ADD / EDIT STUDENT -->
 <div class="modal-overlay" id="modalStudent">
@@ -1269,9 +1277,9 @@ body { font-family: 'Poppins', 'Segoe UI', 'Noto Sans', Roboto, 'Arial Unicode M
     <div class="form-group"><label class="form-label">Password * <span style="color:var(--gray);font-size:10px;">(min 6 characters)</span></label><input type="password" class="form-input" id="newUserPass" placeholder="Set login password"></div>
     <div class="form-group"><label class="form-label">Role</label>
       <select class="form-select" id="newUserRole" onchange="toggleBatchAssignField()">
-        <option value="admin">Admin</option>
         <option value="staff">Staff</option>
       </select>
+      <div style="font-size:10px;color:var(--gray);margin-top:4px;">New accounts are created as Staff. Admin access is managed by the account owner.</div>
     </div>
     <div id="batchAssignGroup" style="display:none;">
       <label class="form-label">Assigned Batches <span style="color:var(--gray);font-size:10px;">(staff sees only these)</span></label>
@@ -1427,20 +1435,13 @@ body { font-family: 'Poppins', 'Segoe UI', 'Noto Sans', Roboto, 'Arial Unicode M
       </div>
     </div>
 
-    <!-- Firebase Sync — ALL users -->
+    <!-- Account — all users -->
     <div style="margin-bottom:16px;">
-      <div class="section-title" style="font-size:13px;margin-bottom:8px;">🔥 Firebase Sync</div>
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;background:var(--royal2);border-radius:8px;padding:9px 12px;">
-        <span id="fbStatusModal" style="font-size:12px;color:var(--gray);flex:1;">⚪ Not connected</span>
-      </div>
-      <div style="display:flex;gap:6px;">
-        <button class="btn btn-outline btn-sm" style="flex:1;" onclick="settingsPull()">⬇️ Pull</button>
-        <button class="btn btn-outline btn-sm" style="flex:1;" onclick="settingsPush()">⬆️ Push</button>
-      </div>
-      <div style="font-size:11px;color:var(--gray);margin-top:7px;">
-        Auto-sync: every 2s &nbsp;|&nbsp; Last push: <span id="lastPushInfoModal">Never</span>
-      </div>
+      <div class="section-title" style="font-size:13px;margin-bottom:8px;">🔐 Account</div>
+      <button class="btn btn-outline btn-sm" style="width:100%;" onclick="openMyPassModal()">🔑 Change My Password</button>
     </div>
+
+    <!-- Firebase Sync section removed — app now uses Supabase with realtime sync -->
 
     <!-- Admin-only section -->
     <div id="settingsAdminOnly" style="display:none;">
@@ -1664,6 +1665,17 @@ let DB = {
 };
 
 let currentUser = null;
+let _appLaunched = false; // guard: only auto-launch the app once
+
+// ── Cloudflare Turnstile CAPTCHA state + callbacks ──
+let _turnstileToken = '';
+function onTurnstileSuccess(token) { _turnstileToken = token; }
+function onTurnstileExpired() { _turnstileToken = ''; }
+function _resetTurnstile() {
+  _turnstileToken = '';
+  try { if (window.turnstile) window.turnstile.reset(); } catch(e) {}
+}
+let _currentAcademyId = null;  // set on login — scopes all Supabase queries to this academy
 let currentPage = 'home';
 let editStudId = null;
 let selectedBatch = { student:'ALL', att:'ALL', fee:'ALL' };
@@ -1709,8 +1721,14 @@ function saveEnquiry() {
   if (!Array.isArray(DB.enquiries)) DB.enquiries = [];
   const createdBy = currentUser ? (currentUser.name || currentUser.id) : 'Unknown';
   const assignedTo = isAdmin() ? (document.getElementById('enqAssignTo')?.value || '') : '';
-  DB.enquiries.unshift({ id:'enq_'+Date.now(), name, phone, query, location:loc, conversionRatio:conv, reminderDate:reminder, assignedTo, datetime:new Date().toISOString(), createdBy, editHistory:[] });
-  scheduleFirebasePush();
+  const newEnq = { id:'enq_'+Date.now(), name, phone, query, location:loc, conversionRatio:conv, reminderDate:reminder, assignedTo, datetime:new Date().toISOString(), createdBy, editHistory:[] };
+  DB.enquiries.unshift(newEnq);
+  sbInsertEnquiry(newEnq).then(row => {
+    if (row) {
+      const idx = DB.enquiries.findIndex(q => q.id === newEnq.id);
+      if (idx >= 0) DB.enquiries[idx].id = row.id;
+    }
+  });
   closeModal('modalAddEnquiry');
   renderEnquiryList();
   showToast('Query saved ✓', 'success');
@@ -1994,7 +2012,7 @@ function saveEnquiryNote(id) {
   if (!Array.isArray(q.staffNotes)) q.staffNotes = [];
   const by = currentUser ? (currentUser.name || currentUser.id) : 'Unknown';
   q.staffNotes.push({ note, by, at: new Date().toISOString() });
-  scheduleFirebasePush();
+  sbUpdateEnquiry(q.id, q);
   addLog('enquiry', `Note added to query for ${q.name} by ${by}`);
   showToast('Note saved ✓', 'success');
   // Re-render detail to show the new note
@@ -2043,7 +2061,7 @@ function saveEditEnquiry() {
   DB.enquiries[idx].editHistory.push({ by: editedBy, at: new Date().toISOString() });
   const assignedTo = isAdmin() ? (document.getElementById('editEnqAssignTo')?.value || '') : (DB.enquiries[idx].assignedTo || '');
   DB.enquiries[idx] = { ...DB.enquiries[idx], name, phone, query, location:loc, conversionRatio:conv, reminderDate:reminder, assignedTo };
-  scheduleFirebasePush();
+  sbUpdateEnquiry(DB.enquiries[idx].id, DB.enquiries[idx]);
   closeModal('modalEditEnquiry');
   renderEnquiryList();
   showToast('Query updated ✓', 'success');
@@ -2095,7 +2113,7 @@ function toggleArchiveEnquiry(id) {
     q.archived = goingToArchive;
     q.archivedAt = goingToArchive ? new Date().toISOString() : '';
     addLog('enquiry', `${goingToArchive ? 'Archived' : 'Restored'} query for ${q.name}`);
-    scheduleFirebasePush();
+    sbUpdateEnquiry(q.id, q);
     closeModal('modalEnquiryDetail');
     renderEnquiryList();
     showToast(goingToArchive ? 'Moved to archive ✓' : 'Restored ✓', 'success');
@@ -2108,7 +2126,7 @@ function deleteEnquiry(id) {
   confirm_('🗑️','Delete Query','Delete this query permanently?', () => {
     DB.enquiries = (DB.enquiries||[]).filter(q => q.id !== id);
     addLog('enquiry', `Deleted query for ${qName}`);
-    scheduleFirebasePush();
+    sbDeleteEnquiry(id);
     closeModal('modalEnquiryDetail');
     renderEnquiryList();
     showToast('Deleted ✓','success');
@@ -2141,7 +2159,6 @@ function snapDateKey(d) {
   return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
 }
 async function takeSnapshot(label) {
-  if (!fbDb) return null;
   try {
     const key  = snapDateKey();
     const snap = JSON.parse(JSON.stringify(DB));
@@ -2149,19 +2166,18 @@ async function takeSnapshot(label) {
     snap._snapLabel = label || 'auto';
     snap._snapTime  = new Date().toISOString();
     snap._snapKey   = key;
-    await fbPut('/snapshots/' + key, snap);
+    await sbAddSnapshot(key, snap._snapLabel, snap);
     if (!Array.isArray(DB.snapshotIndex)) DB.snapshotIndex = [];
     const existing = DB.snapshotIndex.find(s => s.key === key);
     if (existing) { existing.time = snap._snapTime; existing.label = snap._snapLabel; }
     else DB.snapshotIndex.unshift({ key, time:snap._snapTime, label:snap._snapLabel });
     DB.snapshotIndex = DB.snapshotIndex.slice(0,30);
-    scheduleFirebasePush();
     renderSnapshotList();
     return key;
   } catch(e) { console.error('Snapshot failed:',e); return null; }
 }
 function checkMidnightSnapshot() {
-  if (!currentUser || !isAdmin() || !fbDb) return;
+  if (!currentUser || !isAdmin()) return;
   const todayKey = snapDateKey();
   const done = Array.isArray(DB.snapshotIndex) && DB.snapshotIndex.some(s => s.key === todayKey);
   if (!done) {
@@ -2171,13 +2187,12 @@ function checkMidnightSnapshot() {
   }
 }
 function takeSnapshotNow() {
-  if (!fbDb) { showToast('Firebase not connected','error'); return; }
   confirm_('📸','Take Snapshot','Save a snapshot of all current data?', async () => {
     const key = await takeSnapshot('manual');
     if (key) {
       showToast('📸 Snapshot saved: '+key,'success');
       addLog('snapshot','Manual snapshot: '+key);
-      await renderSnapshotList(); // refresh from Firebase to show the new snapshot
+      await renderSnapshotList();
     } else {
       showToast('Snapshot failed','error');
     }
@@ -2187,32 +2202,18 @@ async function renderSnapshotList() {
   const wrap = document.getElementById('snapshotListWrap');
   if (!wrap) return;
 
-  // Always fetch the live list directly from Firebase /snapshots/ so manual
-  // snapshots are visible immediately, regardless of DB.snapshotIndex state.
+  // Fetch the live snapshot list from Supabase
   let list = [];
-  if (fbDb) {
-    wrap.innerHTML = '<div class="empty-state" style="padding:14px;">🔄 Loading snapshots…</div>';
-    try {
-      const remote = await fbGet('/snapshots');
-      if (remote && typeof remote === 'object') {
-        // Build list from actual Firebase keys
-        list = Object.keys(remote).map(key => {
-          const snap = remote[key];
-          return {
-            key,
-            time: snap._snapTime || snap.time || new Date().toISOString(),
-            label: snap._snapLabel || snap.label || 'auto'
-          };
-        }).sort((a, b) => b.key.localeCompare(a.key)); // newest first
-
-        // Keep DB.snapshotIndex in sync with what Firebase actually has
-        DB.snapshotIndex = list.map(s => ({ key: s.key, time: s.time, label: s.label }));
-      }
-    } catch (e) {
-      // Fall back to cached index if Firebase read fails
-      list = Array.isArray(DB.snapshotIndex) ? [...DB.snapshotIndex].sort((a,b) => b.key.localeCompare(a.key)) : [];
-    }
-  } else {
+  wrap.innerHTML = '<div class="empty-state" style="padding:14px;">🔄 Loading snapshots…</div>';
+  try {
+    const aid = acadId();
+    const { data, error } = await sb().from('snapshots')
+      .select('snap_key,label,created_at').eq('academy_id', aid)
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    list = (data || []).map(s => ({ key: s.snap_key, time: s.created_at, label: s.label || 'auto' }));
+    DB.snapshotIndex = list.map(s => ({ key: s.key, time: s.time, label: s.label }));
+  } catch (e) {
     list = Array.isArray(DB.snapshotIndex) ? [...DB.snapshotIndex].sort((a,b) => b.key.localeCompare(a.key)) : [];
   }
 
@@ -2247,23 +2248,22 @@ function restoreSnapshot(key) {
   confirm_('⚠️','Restore Snapshot',
     'Restore ALL data from '+key+'? Current data will be overwritten.',
     async () => {
-      if (!fbDb) { showToast('Firebase not connected','error'); return; }
       try {
-        const data = await fbGet('/snapshots/' + key);
+        const aid = acadId();
+        const { data: row, error } = await sb().from('snapshots')
+          .select('data').eq('academy_id', aid).eq('snap_key', key).single();
+        if (error) throw error;
+        const data = row && row.data;
         if (!data) { showToast('Snapshot not found','error'); return; }
         const savedIndex  = Array.isArray(DB.snapshotIndex) ? [...DB.snapshotIndex] : [];
         DB = ensureArrays(data);
         DB.snapshotIndex = savedIndex;
-        isSyncing = true; pendingPush = false;
-        const toSave = JSON.parse(JSON.stringify(DB));
-        if (toSave.settings) { delete toSave.settings.firebaseApiKey; }
-        await fbPut('/sacdb', toSave);
-        isSyncing = false;
-        lastKnownDB = JSON.stringify(data);
+        // Write the restored data back to all Supabase tables
+        await sbPushFullDB();
         refreshCurrentPage();
         showToast('✅ Restored from '+key,'success');
         addLog('snapshot','Restored from snapshot '+key);
-      } catch(e) { isSyncing=false; showToast('Restore failed: '+e.message,'error'); }
+      } catch(e) { showToast('Restore failed: '+e.message,'error'); }
     });
 }
 
@@ -2271,15 +2271,9 @@ function deleteSnapshot(key) {
   confirm_('🗑️','Delete Snapshot',
     'Delete snapshot '+key+'? This cannot be undone.',
     async () => {
-      if (!fbDb) { showToast('Firebase not connected','error'); return; }
       try {
-        const _fbUser = window._fbAuth && window._fbAuth.currentUser;
-        const _token = _fbUser ? await _fbUser.getIdToken() : '';
-        const _delAuth = _token ? '?auth=' + encodeURIComponent(_token) : '';
-        const _delHdrs = await fbHeaders();
-        await fetch(fbBaseUrl() + '/snapshots/' + key + '.json' + _delAuth, { method: 'DELETE', headers: _delHdrs });
+        await sbDeleteSnapshot(key);
         DB.snapshotIndex = (DB.snapshotIndex || []).filter(s => s.key !== key);
-        scheduleFirebasePush();
         renderSnapshotList();
         addLog('snapshot','Deleted snapshot '+key);
         showToast('Snapshot deleted ✓','success');
@@ -2354,16 +2348,18 @@ function addLog(action, detail) {
   // Unique id ensures concurrent log entries from different devices don't
   // collide. Time + random suffix is good enough for our scale.
   const id = 'lg_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
-  DB.changelog.unshift({
+  const entry = {
     id,
     user: currentUser.id,
     role: currentUser.role || 'staff',
     action,
     detail,
     time: new Date().toISOString()
-  });
+  };
+  DB.changelog.unshift(entry);
   if (DB.changelog.length > 500) DB.changelog.length = 500;
-  scheduleFirebasePush(); // push log to Firebase
+  if (typeof rtMarkSelfWrite === 'function') rtMarkSelfWrite();
+  sbAddAudit(entry); // persist to Supabase audit_log
 }
 
 // Merge two log arrays (changelog or msgLogs) — union by id, then by
@@ -2519,10 +2515,15 @@ async function doLogin() {
   }
 
   const rawId = document.getElementById('loginId').value.trim().toLowerCase();
-  const email = rawId.includes('@') ? rawId : rawId + '@silambam.app';
+  const email = rawId.includes('@') ? rawId : rawId + '@gmail.com';
   const pw    = document.getElementById('loginPass').value;
   if (!rawId || !pw) {
     showLoginError('Please enter both User ID and Password.');
+    return;
+  }
+  // Require the CAPTCHA to be solved
+  if (!_turnstileToken) {
+    showLoginError('Please complete the "I\'m not a robot" check below.');
     return;
   }
 
@@ -2531,16 +2532,56 @@ async function doLogin() {
   btn.disabled = true;
 
   try {
-    // Step 1: Sign in with Firebase Auth
-    if (!window._fbSignIn) throw new Error('Firebase Auth not loaded yet. Please refresh.');
-    await window._fbSignIn(email, pw);
+    // Step 1: Sign in with Supabase Auth (with CAPTCHA token)
+    if (!window._fbSignIn) throw new Error('Supabase not loaded yet. Please refresh.');
+    const { data: signInData, error: signInErr } = await window._fbSignIn(email, pw, _turnstileToken);
+    // Reset the CAPTCHA after each attempt (tokens are single-use)
+    _resetTurnstile();
+    if (signInErr) {
+      // Normalize Supabase auth errors into the codes the catch block expects
+      const msg = (signInErr.message || '').toLowerCase();
+      if (msg.includes('invalid login') || msg.includes('credentials')) {
+        const e = new Error('wrong'); e.code = 'auth/wrong-password'; throw e;
+      }
+      const e = new Error(signInErr.message); e.code = 'auth/other'; throw e;
+    }
 
-    // Step 2: Fetch the app user profile from Firebase DB (role, name, etc.)
-    const users = await fetchUsersForLogin();
-    // Match by email stored in the users list
-    const user = users && users.find(u => u.email === email || u.id === email);
+    // Step 2: Fetch this user's app profile (role, academy, name) from app_users
+    // Wait until the auth session (JWT) is actually available, then query.
+    // Without a valid token the RLS policy sees auth.uid() = null and returns 401/403.
+    let authUid = signInData && signInData.user ? signInData.user.id : null;
+    let haveToken = false;
+    for (let attempt = 0; attempt < 10; attempt++) {
+      try {
+        const { data: sess } = await window._sb.auth.getSession();
+        if (sess && sess.session && sess.session.access_token) {
+          authUid = sess.session.user.id;
+          haveToken = true;
+          break;
+        }
+      } catch(e) {}
+      await new Promise(r => setTimeout(r, 150)); // wait 150ms and retry
+    }
+    if (!haveToken) console.warn('No access token available after sign-in');
 
-    if (!user) {
+    const { data: profile, error: profErr } = await window._sb
+      .from('app_users')
+      .select('*')
+      .eq('id', authUid)
+      .single();
+    if (profErr) console.error('app_users lookup error:', profErr);
+
+    const user = profile ? {
+      id: profile.login_id || profile.email,
+      uid: profile.id,
+      academyId: profile.academy_id,
+      email: profile.email,
+      name: profile.name,
+      role: profile.role,
+      assignedBatches: profile.assigned_batches || []
+    } : null;
+
+    if (profErr || !user) {
       // Auth succeeded but no app profile found — treat as unauthorised
       await window._fbSignOut();
       showLoginError('Account not set up in app. Contact your admin.');
@@ -2549,7 +2590,8 @@ async function doLogin() {
     }
 
     // Step 3: Launch app
-    DB.users = users;
+    _currentAcademyId = user.academyId;   // scope all data to this academy
+    DB.users = [user];
     _loginFailCount = 0; _loginLockUntil = 0; _persistLockout();  // reset lockout on success
     clearLoginError();
     btn.textContent = 'Login →'; btn.disabled = false;
@@ -2575,12 +2617,12 @@ async function doLogin() {
     // the push it triggers would race the pull and could wipe Firebase
     // with the empty default in-memory DB.
 
-    initFirebase().then(() => {
+    loadAllData().then(() => {
       finishLoadProgress(() => {
         if (overlay) overlay.classList.remove('active');
-        updateLogos();  // refresh logo now that DB.settings.logoUrl is loaded
-        applyAcadSettings();  // refresh academy name/tagline now that settings are loaded
-        // Safe to log the login now — DB has the real data from Firebase.
+        _appLaunched = true; // prevent the auth listener from re-launching
+        updateLogos();  // refresh logo now that settings loaded
+        applyAcadSettings();  // refresh academy name/tagline now that settings loaded
         addLog('login', 'Logged in');
         if (isDefaultPassword(user)) {
           showChangePassScreen();
@@ -2704,6 +2746,33 @@ function showChangePassScreen() {
   document.getElementById('changePassScreen').style.display = 'flex';
 }
 
+function openMyPassModal() {
+  closeModal('modalSettings');
+  document.getElementById('myPassNew').value = '';
+  document.getElementById('myPassConfirm').value = '';
+  const err = document.getElementById('myPassError');
+  if (err) err.style.display = 'none';
+  openModal('modalMyPass');
+}
+
+async function doChangeMyPassword() {
+  const np = document.getElementById('myPassNew').value;
+  const cp = document.getElementById('myPassConfirm').value;
+  const err = document.getElementById('myPassError');
+  const showErr = (m) => { if (err) { err.textContent = m; err.style.display = ''; } };
+  if (!np || np.length < 6) { showErr('Password must be at least 6 characters.'); return; }
+  if (np !== cp) { showErr('Passwords do not match.'); return; }
+  try {
+    const { error } = await window._sb.auth.updateUser({ password: np });
+    if (error) throw error;
+    addLog('user', 'Changed own password');
+    closeModal('modalMyPass');
+    showToast('Password updated ✓', 'success');
+  } catch(e) {
+    showErr(e.message || 'Could not update password.');
+  }
+}
+
 async function doChangePass() {
   const np = document.getElementById('chPassNew').value;
   const cp = document.getElementById('chPassConfirm').value;
@@ -2718,21 +2787,14 @@ async function doChangePass() {
     errEl.classList.add('show'); return;
   }
   try {
-    // Update password via Firebase Auth
-    const firebaseUser = window._fbAuth && window._fbAuth.currentUser;
-    if (firebaseUser) {
-      const { updatePassword } = await import('https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js');
-      await updatePassword(firebaseUser, np);
-    }
-    // Remove mustChangePass flag from app DB
+    // Update the logged-in user's own password via Supabase Auth
+    const { error } = await window._sb.auth.updateUser({ password: np });
+    if (error) throw error;
     const idx = DB.users.findIndex(u => u.id === currentUser.id);
     if (idx >= 0) {
       delete DB.users[idx].mustChangePass;
-      delete DB.users[idx].password; // no longer storing passwords in DB
       currentUser = DB.users[idx];
     }
-    try { localStorage.setItem('sac_session', JSON.stringify({ email: currentUser.email || currentUser.id })); } catch(e) {}
-    scheduleFirebasePush();
     addLog('user', 'Password changed on first login');
     document.getElementById('changePassScreen').style.display = 'none';
     launchApp();
@@ -2765,6 +2827,57 @@ function launchApp() {
   initFeeFilters();
   switchPage('home');
   checkMidnightSnapshot();
+  startRealtimeSync();
+}
+
+// ----------------------------------------------------------------
+// REALTIME SYNC — listen for DB changes and refresh across devices
+// ----------------------------------------------------------------
+let _rtChannel = null;
+let _rtReloadTimer = null;
+let _rtSelfWriteUntil = 0; // brief window to ignore our own echoes
+
+// Call this after we make a local write, so the immediate echo doesn't
+// trigger a redundant full reload.
+function rtMarkSelfWrite() { _rtSelfWriteUntil = Date.now() + 1500; }
+
+function startRealtimeSync() {
+  if (!window._sb || _rtChannel) return;
+  const aid = acadId();
+  if (!aid) return;
+  try {
+    _rtChannel = window._sb
+      .channel('academy-' + aid)
+      .on('postgres_changes',
+        { event: '*', schema: 'public' },
+        (payload) => {
+          // A change happened on some table. If it was very likely our own
+          // write, skip (we already updated locally). Otherwise refresh.
+          if (Date.now() < _rtSelfWriteUntil) return;
+          scheduleRealtimeReload();
+        })
+      .subscribe();
+  } catch (e) {
+    console.warn('Realtime subscribe failed:', e);
+  }
+}
+
+function stopRealtimeSync() {
+  if (_rtChannel) { try { window._sb.removeChannel(_rtChannel); } catch(e){} _rtChannel = null; }
+}
+
+// Debounced: reload all data, then re-render whatever page is showing.
+function scheduleRealtimeReload() {
+  if (_rtReloadTimer) clearTimeout(_rtReloadTimer);
+  _rtReloadTimer = setTimeout(async () => {
+    try {
+      await loadAllData();
+      refreshCurrentPage();
+      // subtle indicator that data updated from another device
+      const dot = document.getElementById('rtSyncDot');
+      if (dot) { dot.style.opacity = '1'; setTimeout(() => { dot.style.opacity = '0'; }, 1200); }
+    } catch (e) { console.warn('Realtime reload failed:', e); }
+  }, 600);
 }
 
 function migrateRollNumbers() {
@@ -2785,19 +2898,23 @@ function migrateRollNumbers() {
   let nextRoll = DB.students.reduce((max, s) => Math.max(max, parseInt(s.rollNo)||0), 0) + 1;
 
   // Assign unique roll numbers
+  const changed = [];
   noRoll.forEach(s => {
     const idx = DB.students.findIndex(x => x.id === s.id);
     if (idx >= 0) {
       DB.students[idx].rollNo = nextRoll++;
+      changed.push(DB.students[idx]);
     }
   });
-
-  scheduleFirebasePush();
+  // Persist each changed student to Supabase
+  changed.forEach(st => { if (st._sid) sbUpdateStudent(st._sid, st); });
 }
 
 function doLogout() {
   confirm_('🚪','Logout','Are you sure you want to logout?', () => {
     addLog('logout','Logged out');
+    stopRealtimeSync();
+    _appLaunched = false;
     currentUser = null;
     try { localStorage.removeItem('sac_session'); localStorage.removeItem('sac_session_time'); } catch(e) {}
     if (fbPullTimer) { clearInterval(fbPullTimer); fbPullTimer = null; }
@@ -2833,330 +2950,649 @@ let lastKnownDB = null;
 // which would wipe all data for everyone else.
 let hasLoadedRemote = false;
 
-function fbBaseUrl() {
-  const url = window._fbDatabaseURL || DB.settings.firebaseUrl || '';
-  return url.replace(/\/$/, '');
-}
+// ============================================================
+// SUPABASE DATA LAYER
+// Loads all tables for the current academy into the in-memory DB,
+// mapping back to the structure the rest of the app expects.
+// ============================================================
+const sb = () => window._sb;
+const acadId = () => _currentAcademyId;
 
-async function fbRestUrl(path) {
-  let token = '';
+async function loadAllData() {
   try {
-    const user = window._fbAuth && window._fbAuth.currentUser;
-    if (user) token = await user.getIdToken();
-  } catch(e) {}
-  const sep = path.includes('?') ? '&' : '?';
-  return fbBaseUrl() + path + '.json' + (token ? sep + 'auth=' + encodeURIComponent(token) : '');
-}
+    const aid = acadId();
+    if (!aid) throw new Error('No academy id set');
 
-// Build headers including the App Check token (if available)
-async function fbHeaders(extra) {
-  const headers = Object.assign({}, extra || {});
-  try {
-    if (window._fbGetAppCheckToken) {
-      const acToken = await window._fbGetAppCheckToken();
-      if (acToken) headers['X-Firebase-AppCheck'] = acToken;
-    }
-  } catch(e) {}
-  return headers;
-}
+    // Fetch all tables in parallel, scoped to this academy
+    const [
+      acadRes, usersRes, batchesRes, studentsRes,
+      attRes, feesRes, enqRes, classRes, auditRes, msgRes, snapRes
+    ] = await Promise.all([
+      sb().from('academies').select('*').eq('id', aid).single(),
+      sb().from('app_users').select('*').eq('academy_id', aid),
+      sb().from('batches').select('*').eq('academy_id', aid).order('sort_order'),
+      sb().from('students').select('*').eq('academy_id', aid),
+      sb().from('attendance').select('*').eq('academy_id', aid),
+      sb().from('fees').select('*').eq('academy_id', aid),
+      sb().from('enquiries').select('*').eq('academy_id', aid),
+      sb().from('class_log').select('*').eq('academy_id', aid),
+      sb().from('audit_log').select('*').eq('academy_id', aid).order('created_at', { ascending: false }).limit(500),
+      sb().from('msg_logs').select('*').eq('academy_id', aid).order('sent_at', { ascending: false }).limit(200),
+      sb().from('snapshots').select('snap_key,label,created_at').eq('academy_id', aid).order('created_at', { ascending: false })
+    ]);
 
-// GET — fetch data from Firebase REST
-async function fbGet(path) {
-  const url = await fbRestUrl(path);
-  const headers = await fbHeaders();
-  const res = await fetch(url, { headers });
-  if (!res.ok) throw new Error('Firebase GET failed: ' + res.status);
-  return res.json();
-}
-
-// PUT — write data to Firebase REST
-async function fbPut(path, data) {
-  const url = await fbRestUrl(path);
-  const headers = await fbHeaders({ 'Content-Type': 'application/json' });
-  const res = await fetch(url, {
-    method: 'PUT',
-    headers,
-    body: JSON.stringify(data)
-  });
-  if (!res.ok) throw new Error('Firebase PUT failed: ' + res.status);
-  return res.json();
-}
-
-function initFirebase() {
-  const url = fbBaseUrl();
-  if (!url) return Promise.resolve();
-
-  fbDb = true;
-  hasLoadedRemote = false; // block any push until the pull below completes
-  const el = document.getElementById('fbStatus');
-  if (el) el.textContent = '🟡 Connecting...';
-
-  return fbGet('/sacdb')
-    .then(remote => {
-      if (remote) {
-        DB = ensureArrays(remote);
-        // Restore current user reference from the freshly pulled users list
-        if (currentUser) {
-          const refreshed = DB.users.find(u => u && (u.id === currentUser.id || u.email === currentUser.email));
-          if (refreshed) currentUser = refreshed;
-        }
-        lastKnownDB = JSON.stringify(remote);
-        hasLoadedRemote = true;
-        if (el) el.textContent = '🟢 Connected & pulled latest data';
-      } else {
-        // Remote is null. DO NOT push the local default/empty DB —
-        // doing so would wipe any data that other users might have created.
-        // Only treat as "fresh empty database" if the users list confirms
-        // there is genuinely nothing on Firebase yet.
-        if (!Array.isArray(DB.users) || DB.users.length === 0) {
-          hasLoadedRemote = true; // safe to seed the DB
-          pendingPush = true;
-          if (el) el.textContent = '🟢 Connected (new database)';
-        } else {
-          // Cloud read returned null but users were fetched separately.
-          // Likely a permissions/race issue — refuse to push to avoid wipe.
-          hasLoadedRemote = false;
-          if (el) el.textContent = '🟠 Read returned empty — push blocked for safety';
-        }
-      }
-      startPull();
-    })
-    .catch(e => {
-      // Network/permission failure on pull. Do NOT push — that would wipe cloud.
-      hasLoadedRemote = false;
-      if (el) el.textContent = '🔴 ' + e.message + ' (push blocked)';
-      startPull(); // start polling anyway in case it recovers
-    });
-}
-
-function saveFirebaseUrl() {
-  showToast('Firebase URL is baked into the app config. Edit the source to change it.', 'warn');
-}
-
-async function startPull() {
-  // Cancel any existing timers/listeners
-  if (fbPullTimer) { clearInterval(fbPullTimer); fbPullTimer = null; }
-  if (fbListener) { try { fbListener.close(); } catch(e) {} fbListener = null; }
-  if (pushTimer) { clearTimeout(pushTimer); pushTimer = null; }
-
-  const url = fbBaseUrl();
-  if (!url) return;
-
-  // ── Try SSE (real-time stream) first ──
-  try {
-    const user = window._fbAuth && window._fbAuth.currentUser;
-    const token = user ? await user.getIdToken() : '';
-    const sseUrl = url + '/sacdb.json' + (token ? '?auth=' + encodeURIComponent(token) : '');
-    const es = new EventSource(sseUrl);
-    es.addEventListener('put', e => {
-      try {
-        const payload = JSON.parse(e.data);
-        const remote = payload.path === '/' ? payload.data : null;
-        if (!remote || !currentUser || isSyncing || isModalOpen()) return;
-        notifyFirebaseUpdate(remote, false);
-        // Preserve any local log entries we made but haven't pushed yet.
-        // Without this, an inbound SSE update would overwrite our just-added
-        // changelog/msgLogs entries before they can be pushed to Firebase.
-        const pendingChangelog = Array.isArray(DB.changelog) ? DB.changelog : [];
-        const pendingMsgLogs   = Array.isArray(DB.msgLogs)   ? DB.msgLogs   : [];
-        DB = ensureArrays(remote);
-        DB.changelog = mergeLogArrays(pendingChangelog, DB.changelog, 500);
-        DB.msgLogs   = mergeLogArrays(pendingMsgLogs,   DB.msgLogs,   200);
-        if (currentUser) { const r = DB.users.find(u => u && u.id === currentUser.id); if (r) currentUser = r; }
-        refreshCurrentPage();
-        const st = document.getElementById('fbStatus');
-        if (st) st.textContent = '🟢 Live — updated ' + new Date().toLocaleTimeString();
-      } catch(ex) { /* ignore parse errors */ }
-    });
-    es.onerror = () => {
-      // SSE failed — fall back to polling
-      try { es.close(); } catch(ex) {}
-      fbListener = null;
-      startPolling(url);
+    // --- settings (from academies row) ---
+    const a = acadRes.data || {};
+    DB.settings = {
+      academyName: a.name || '', logoUrl: a.logo_url || '', email: a.email || '',
+      phone: a.phone || '', tagline: a.tagline || '', loginBgUrl: a.login_bg_url || '',
+      loginSupport: a.login_support || '', msgTemplate: a.msg_template || DB.settings.msgTemplate,
+      lastPush: '', lastPushBy: '', firebaseUrl: ''
     };
-    fbListener = es;
-    return;
-  } catch(ex) { /* SSE not supported — fall through to polling */ }
+    DB.notes = a.notes || '';
 
-  startPolling(url);
-}
+    // --- users ---
+    DB.users = (usersRes.data || []).map(u => ({
+      id: u.login_id || u.email, uid: u.id, academyId: u.academy_id,
+      email: u.email, name: u.name, role: u.role, assignedBatches: u.assigned_batches || []
+    }));
 
-function startPolling(url) {
-  // Poll every 5 seconds as fallback
-  fbPullTimer = setInterval(async () => {
-    if (!currentUser || isSyncing || isModalOpen()) return;
-    try {
-      const remote = await fbGet('/sacdb');
-      if (!remote) return;
-      const oldStr = lastKnownDB;
-      const newStr = JSON.stringify(remote);
-      if (oldStr === newStr) return; // no change
-      notifyFirebaseUpdate(remote, false);
-      // Same protection as the SSE handler — preserve any local log entries
-      // we have added but not yet pushed.
-      const pendingChangelog = Array.isArray(DB.changelog) ? DB.changelog : [];
-      const pendingMsgLogs   = Array.isArray(DB.msgLogs)   ? DB.msgLogs   : [];
-      DB = ensureArrays(remote);
-      DB.changelog = mergeLogArrays(pendingChangelog, DB.changelog, 500);
-      DB.msgLogs   = mergeLogArrays(pendingMsgLogs,   DB.msgLogs,   200);
-      if (currentUser) { const r = DB.users.find(u => u && u.id === currentUser.id); if (r) currentUser = r; }
-      lastKnownDB = newStr;
-      refreshCurrentPage();
-      const st = document.getElementById('fbStatus');
-      if (st) st.textContent = '🟢 Synced — ' + new Date().toLocaleTimeString();
-    } catch(ex) {
-      const st = document.getElementById('fbStatus');
-      if (st) st.textContent = '🟠 Sync error — retrying...';
-    }
-  }, 5000);
-}
+    // --- batches (array of names) ---
+    DB.batches = (batchesRes.data || []).map(b => b.name);
 
-function saveLocal() { /* no-op — Firebase is the only store */ }
+    // --- students (keep db uuid as _sid for later writes; id stays app-style) ---
+    DB.students = (studentsRes.data || []).map(s => ({
+      _sid: s.id, id: s.id, rollNo: s.roll_no, name: s.name, age: s.age, dob: s.dob,
+      parent: s.parent, contact: s.contact, contact2: s.contact2, address: s.address,
+      batch: s.batch, joinDate: s.join_date, banned: s.banned, bannedOn: s.banned_on
+    }));
+    // Map student uuid -> for attendance/fees rebuild
+    const sidToId = {}; DB.students.forEach(s => { sidToId[s._sid] = s.id; });
 
-function scheduleFirebasePush() {
-  pendingPush = true;
-  // Safety: do not even start a push timer until the initial pull is done.
-  // The retry inside startPull() will eventually flush this once hasLoadedRemote=true.
-  if (!hasLoadedRemote) return;
-  if (pushTimer) clearTimeout(pushTimer);
-  pushTimer = setTimeout(doPush, 800);
-}
-
-function doPush() {
-  if (!fbDb || !currentUser || !pendingPush) return;
-  // Critical safety check: never push until we have a confirmed pull from
-  // Firebase. Otherwise the default empty in-memory DB would wipe the cloud.
-  if (!hasLoadedRemote) {
-    if (pushTimer) clearTimeout(pushTimer);
-    pushTimer = setTimeout(doPush, 1500); // retry after pull completes
-    return;
-  }
-  if (isSyncing) {
-    if (pushTimer) clearTimeout(pushTimer);
-    pushTimer = setTimeout(doPush, 1000);
-    return;
-  }
-  isSyncing = true;
-  pendingPush = false;
-
-  // Before pushing, fetch the latest changelog + msgLogs from Firebase and
-  // merge them into the local DB. This protects log entries written by other
-  // devices in the brief window since our last pull — without the merge, our
-  // upcoming PUT to /sacdb would overwrite them.
-  // We deliberately scope this to append-only log structures only; everything
-  // else uses last-write-wins which is the original behaviour.
-  Promise.all([
-    fbGet('/sacdb/changelog').catch(() => null),
-    fbGet('/sacdb/msgLogs').catch(()  => null)
-  ]).then(([remoteChangelog, remoteMsgLogs]) => {
-    const rcl = Array.isArray(remoteChangelog)
-      ? remoteChangelog
-      : (remoteChangelog && typeof remoteChangelog === 'object' ? Object.values(remoteChangelog) : []);
-    const rml = Array.isArray(remoteMsgLogs)
-      ? remoteMsgLogs
-      : (remoteMsgLogs && typeof remoteMsgLogs === 'object' ? Object.values(remoteMsgLogs) : []);
-    DB.changelog = mergeLogArrays(DB.changelog || [], rcl, 500);
-    DB.msgLogs   = mergeLogArrays(DB.msgLogs   || [], rml, 200);
-
-    const snapshot = JSON.parse(JSON.stringify(DB));
-    if (snapshot.settings) delete snapshot.settings.firebaseApiKey;
-    notifyFirebaseUpdate(snapshot, true);
-    return fbPut('/sacdb', snapshot)
-    .then(() => {
-      DB.settings.lastPush = new Date().toISOString();
-      DB.settings.lastPushBy = currentUser ? currentUser.id : '';
-      lastKnownDB = JSON.stringify(snapshot);
-      const st = document.getElementById('fbStatus');
-      if (st) st.textContent = '🟢 Saved to cloud ' + new Date().toLocaleTimeString();
-      const el = document.getElementById('lastPushInfo');
-      if (el) el.textContent = new Date().toLocaleString() + ' by ' + (currentUser ? currentUser.id : '');
-    })
-    .catch(() => {
-      pendingPush = true;
-      if (pushTimer) clearTimeout(pushTimer);
-      pushTimer = setTimeout(doPush, 3000);
-      const st = document.getElementById('fbStatus');
-      if (st) st.textContent = '🔴 Save failed — retrying...';
-    })
-    .finally(() => {
-      setTimeout(() => { isSyncing = false; }, 1500);
+    // --- attendance: rebuild { "YYYY-MM-DD": { studentId: "P"/"A" } } ---
+    DB.attendance = {};
+    (attRes.data || []).forEach(r => {
+      const d = r.date;
+      if (!DB.attendance[d]) DB.attendance[d] = {};
+      DB.attendance[d][r.student_id] = r.status;
     });
-  }).catch(err => {
-    // If the merge step itself fails (e.g. transient network blip while
-    // fetching changelog/msgLogs), don't get stuck — release the lock and
-    // queue a retry so the user's data still reaches Firebase.
-    pendingPush = true;
-    isSyncing = false;
-    if (pushTimer) clearTimeout(pushTimer);
-    pushTimer = setTimeout(doPush, 3000);
-    const st = document.getElementById('fbStatus');
-    if (st) st.textContent = '🟠 Sync prep failed — retrying...';
-  });
-}
 
-function pushToFirebase() {
-  if (!fbDb) { showToast('Firebase not connected', 'error'); return; }
-  if (!hasLoadedRemote) {
-    showToast('Cloud data not loaded yet — please wait, then try again.', 'error');
-    return;
+    // --- fees: rebuild { "YYYY-MM": { studentId: {...} } } ---
+    DB.fees = {};
+    (feesRes.data || []).forEach(r => {
+      const m = r.month;
+      if (!DB.fees[m]) DB.fees[m] = {};
+      DB.fees[m][r.student_id] = {
+        status: r.status, amount: r.amount, method: r.method,
+        date: r.paid_date, by: r.collected_by, msgSent: r.msg_sent || []
+      };
+    });
+
+    // --- enquiries ---
+    DB.enquiries = (enqRes.data || []).map(e => ({
+      id: e.id, name: e.name, phone: e.phone, query: e.query, location: e.location,
+      conversionRatio: e.conversion_ratio, reminderDate: e.reminder_date,
+      assignedTo: e.assigned_to, createdBy: e.created_by, archived: e.archived,
+      archivedAt: e.archived_at, datetime: e.created_at, editHistory: e.edit_history || [],
+      staffNotes: e.staff_notes || []
+    }));
+
+    // --- class log ---
+    DB.classLog = (classRes.data || []).map(c => ({
+      id: c.id, date: c.date, batch: c.batch, inTime: c.in_time, outTime: c.out_time,
+      duration: c.duration, note: c.note, by: c.created_by, at: c.created_at
+    }));
+
+    // --- changelog (audit) ---
+    DB.changelog = (auditRes.data || []).map(c => ({
+      id: c.id, user: c.user_id, role: c.role, action: c.action, detail: c.detail, time: c.created_at
+    }));
+
+    // --- msg logs ---
+    DB.msgLogs = (msgRes.data || []).map(m => ({
+      id: m.id, type: m.type, to: m.to_name, contact: m.contact,
+      month: m.month, by: m.sent_by, at: m.sent_at, msg: m.message
+    }));
+
+    // --- snapshot index ---
+    DB.snapshotIndex = (snapRes.data || []).map(s => ({
+      key: s.snap_key, label: s.label, time: s.created_at
+    }));
+
+    hasLoadedRemote = true;
+    return true;
+  } catch (e) {
+    console.error('loadAllData failed:', e);
+    showToast('Failed to load data: ' + e.message, 'error');
+    return false;
   }
-  confirm_('⬆️', 'Manual Push', 'Push all local data to Firebase now?', () => {
-    isSyncing = true;
-    const snap = JSON.parse(JSON.stringify(DB));
-    if (snap.settings) delete snap.settings.firebaseApiKey;
-    fbPut('/sacdb', snap)
-      .then(() => {
-        DB.settings.lastPush = new Date().toISOString();
-        DB.settings.lastPushBy = currentUser.id;
-        pendingPush = false;
-        lastKnownDB = JSON.stringify(snap);
-        const el = document.getElementById('lastPushInfo');
-        if (el) el.textContent = new Date().toLocaleString() + ' by ' + currentUser.id;
-        showToast('Pushed to Firebase ✓', 'success');
-        addLog('firebase_push', 'Manual push');
-      })
-      .catch(e => showToast('Push failed: ' + e.message, 'error'))
-      .finally(() => { setTimeout(() => { isSyncing = false; }, 1500); });
-  });
 }
 
-function manualPull() {
-  if (!fbDb) { showToast('Firebase not connected', 'error'); return; }
-  fbGet('/sacdb').then(remote => {
-    if (remote) {
-      DB = ensureArrays(remote);
-      lastKnownDB = JSON.stringify(remote);
-      hasLoadedRemote = true; // unblock pushes now that we have real data
-      if (currentUser) {
-        const refreshed = DB.users.find(u => u && u.id === currentUser.id);
-        if (refreshed) currentUser = refreshed;
-      }
-      refreshCurrentPage();
-      showToast('Data pulled from Firebase ✓', 'success');
-    } else {
-      showToast('No data on Firebase', 'error');
+// ============================================================
+// STAGE C — SUPABASE WRITE OPERATIONS (per-table)
+// Each function writes a single row/record directly to Supabase.
+// ============================================================
+
+// ---- SETTINGS (academies row) ----
+async function sbSaveSettings() {
+  const aid = acadId();
+  if (!aid) return;
+  try {
+    const { error } = await sb().from('academies').update({
+      name:          DB.settings.academyName || '',
+      logo_url:      DB.settings.logoUrl     || '',
+      email:         DB.settings.email       || '',
+      phone:         DB.settings.phone       || '',
+      tagline:       DB.settings.tagline     || '',
+      login_bg_url:  DB.settings.loginBgUrl  || '',
+      login_support: DB.settings.loginSupport|| '',
+      msg_template:  DB.settings.msgTemplate || '',
+      notes:         DB.notes                || ''
+    }).eq('id', aid);
+    if (error) throw error;
+  } catch (e) {
+    console.error('sbSaveSettings failed:', e);
+    showToast('Save to cloud failed: ' + e.message, 'error');
+  }
+}
+
+// ---- BATCHES (batches table) ----
+async function sbAddBatch(name, sortOrder) {
+  const aid = acadId();
+  if (!aid) return;
+  try {
+    const { error } = await sb().from('batches').insert({
+      academy_id: aid, name: name, sort_order: sortOrder || 0
+    });
+    if (error) throw error;
+  } catch (e) {
+    console.error('sbAddBatch failed:', e);
+    showToast('Save to cloud failed: ' + e.message, 'error');
+  }
+}
+async function sbRenameBatch(oldName, newName) {
+  const aid = acadId();
+  if (!aid) return;
+  try {
+    // Rename the batch row
+    const { error: e1 } = await sb().from('batches')
+      .update({ name: newName }).eq('academy_id', aid).eq('name', oldName);
+    if (e1) throw e1;
+    // Update any students that were in the old batch
+    const { error: e2 } = await sb().from('students')
+      .update({ batch: newName }).eq('academy_id', aid).eq('batch', oldName);
+    if (e2) throw e2;
+  } catch (e) {
+    console.error('sbRenameBatch failed:', e);
+    showToast('Save to cloud failed: ' + e.message, 'error');
+  }
+}
+async function sbDeleteBatch(name, fallbackName) {
+  const aid = acadId();
+  if (!aid) return;
+  try {
+    // Move students to fallback batch
+    const { error: e1 } = await sb().from('students')
+      .update({ batch: fallbackName }).eq('academy_id', aid).eq('batch', name);
+    if (e1) throw e1;
+    // Delete the batch row
+    const { error: e2 } = await sb().from('batches')
+      .delete().eq('academy_id', aid).eq('name', name);
+    if (e2) throw e2;
+  } catch (e) {
+    console.error('sbDeleteBatch failed:', e);
+    showToast('Save to cloud failed: ' + e.message, 'error');
+  }
+}
+
+// ---- STUDENTS (students table) ----
+// Converts an in-memory student object to a DB row
+function _studentRow(s) {
+  const aid = acadId();
+  return {
+    academy_id: aid,
+    roll_no: s.rollNo || null,
+    name: s.name || '',
+    age: s.age || '',
+    dob: s.dob || '',
+    parent: s.parent || '',
+    contact: s.contact || '',
+    contact2: s.contact2 || '',
+    address: s.address || '',
+    batch: s.batch || '',
+    join_date: _toDateOrNull(s.joinDate),
+    banned: !!s.banned,
+    banned_on: s.bannedOn || null
+  };
+}
+// Insert a new student; returns the created row (with real uuid) or null
+async function sbInsertStudent(s) {
+  try {
+    const { data, error } = await sb().from('students')
+      .insert(_studentRow(s)).select().single();
+    if (error) throw error;
+    return data;
+  } catch (e) {
+    console.error('sbInsertStudent failed:', e);
+    showToast('Save to cloud failed: ' + e.message, 'error');
+    return null;
+  }
+}
+// Update an existing student by its uuid (_sid)
+async function sbUpdateStudent(sid, s) {
+  try {
+    const row = _studentRow(s);
+    delete row.academy_id; // don't change ownership
+    const { error } = await sb().from('students').update(row).eq('id', sid);
+    if (error) throw error;
+  } catch (e) {
+    console.error('sbUpdateStudent failed:', e);
+    showToast('Save to cloud failed: ' + e.message, 'error');
+  }
+}
+// Delete a student by uuid
+async function sbDeleteStudent(sid) {
+  try {
+    const { error } = await sb().from('students').delete().eq('id', sid);
+    if (error) throw error;
+  } catch (e) {
+    console.error('sbDeleteStudent failed:', e);
+    showToast('Save to cloud failed: ' + e.message, 'error');
+  }
+}
+// Bulk insert students (import); maps real uuids back into DB.students
+async function sbBulkInsertStudents(studs) {
+  if (!studs || !studs.length) return;
+  try {
+    const rows = studs.map(_studentRow);
+    const { data, error } = await sb().from('students').insert(rows).select();
+    if (error) throw error;
+    // Map returned rows back by matching name+contact order (insert preserves order)
+    (data || []).forEach((row, i) => {
+      const orig = studs[i];
+      const idx = DB.students.findIndex(s => s.id === orig.id);
+      if (idx >= 0) { DB.students[idx]._sid = row.id; DB.students[idx].id = row.id; }
+    });
+  } catch (e) {
+    console.error('sbBulkInsertStudents failed:', e);
+    showToast('Some students may not have saved to cloud: ' + e.message, 'error');
+  }
+}
+
+// ---- ATTENDANCE (attendance table; upsert per student+date) ----
+async function sbSetAttendance(studentUuid, dateKey, status, markedBy) {
+  const aid = acadId();
+  if (!aid) return;
+  try {
+    const { error } = await sb().from('attendance').upsert({
+      academy_id: aid, student_id: studentUuid, date: dateKey,
+      status: status, marked_by: markedBy || ''
+    }, { onConflict: 'student_id,date' });
+    if (error) throw error;
+  } catch (e) {
+    console.error('sbSetAttendance failed:', e);
+    showToast('Save to cloud failed: ' + e.message, 'error');
+  }
+}
+async function sbClearAttendance(studentUuid, dateKey) {
+  try {
+    const { error } = await sb().from('attendance')
+      .delete().eq('student_id', studentUuid).eq('date', dateKey);
+    if (error) throw error;
+  } catch (e) {
+    console.error('sbClearAttendance failed:', e);
+    showToast('Save to cloud failed: ' + e.message, 'error');
+  }
+}
+// Bulk upsert (mark all) / bulk clear
+async function sbSetAttendanceBulk(studentUuids, dateKey, status, markedBy) {
+  const aid = acadId();
+  if (!aid || !studentUuids.length) return;
+  try {
+    const rows = studentUuids.map(uid => ({
+      academy_id: aid, student_id: uid, date: dateKey, status, marked_by: markedBy || ''
+    }));
+    const { error } = await sb().from('attendance').upsert(rows, { onConflict: 'student_id,date' });
+    if (error) throw error;
+  } catch (e) {
+    console.error('sbSetAttendanceBulk failed:', e);
+    showToast('Save to cloud failed: ' + e.message, 'error');
+  }
+}
+async function sbClearAttendanceBulk(studentUuids, dateKey) {
+  if (!studentUuids.length) return;
+  try {
+    const { error } = await sb().from('attendance')
+      .delete().in('student_id', studentUuids).eq('date', dateKey);
+    if (error) throw error;
+  } catch (e) {
+    console.error('sbClearAttendanceBulk failed:', e);
+    showToast('Save to cloud failed: ' + e.message, 'error');
+  }
+}
+
+// ---- FEES (fees table; upsert per student+month) ----
+async function sbSetFee(studentUuid, month, fee) {
+  const aid = acadId();
+  if (!aid) return;
+  try {
+    const { error } = await sb().from('fees').upsert({
+      academy_id: aid, student_id: studentUuid, month: month,
+      status: fee.status || '', amount: fee.amount || null,
+      method: fee.method || '', paid_date: _toDateOrNull(fee.date),
+      collected_by: fee.by || '',
+      msg_sent: fee.msgSent || []
+    }, { onConflict: 'student_id,month' });
+    if (error) throw error;
+  } catch (e) {
+    console.error('sbSetFee failed:', e);
+    showToast('Save to cloud failed: ' + e.message, 'error');
+  }
+}
+async function sbClearFee(studentUuid, month) {
+  try {
+    const { error } = await sb().from('fees')
+      .delete().eq('student_id', studentUuid).eq('month', month);
+    if (error) throw error;
+  } catch (e) {
+    console.error('sbClearFee failed:', e);
+    showToast('Save to cloud failed: ' + e.message, 'error');
+  }
+}
+
+// ---- MSG LOGS (msg_logs table) ----
+async function sbAddMsgLog(entry) {
+  const aid = acadId();
+  if (!aid) return;
+  try {
+    const { error } = await sb().from('msg_logs').insert({
+      academy_id: aid, type: entry.type || '', to_name: entry.to || '',
+      contact: entry.contact || '', month: entry.month || '',
+      sent_by: entry.by || '', sent_at: entry.at || new Date().toISOString(),
+      message: entry.msg || ''
+    });
+    if (error) throw error;
+  } catch (e) {
+    console.error('sbAddMsgLog failed:', e);
+  }
+}
+
+// ---- ENQUIRIES (enquiries table) ----
+function _enqRow(q) {
+  return {
+    academy_id: acadId(),
+    name: q.name || '', phone: q.phone || '', query: q.query || '',
+    location: q.location || '', conversion_ratio: q.conversionRatio || '',
+    reminder_date: _toDateOrNull(q.reminderDate), assigned_to: q.assignedTo || '',
+    created_by: q.createdBy || '', archived: !!q.archived,
+    archived_at: q.archivedAt || null, edit_history: q.editHistory || [],
+    staff_notes: q.staffNotes || []
+  };
+}
+async function sbInsertEnquiry(q) {
+  try {
+    const { data, error } = await sb().from('enquiries').insert(_enqRow(q)).select().single();
+    if (error) throw error;
+    return data;
+  } catch (e) {
+    console.error('sbInsertEnquiry failed:', e);
+    showToast('Save to cloud failed: ' + e.message, 'error');
+    return null;
+  }
+}
+async function sbUpdateEnquiry(id, q) {
+  try {
+    const row = _enqRow(q); delete row.academy_id;
+    const { error } = await sb().from('enquiries').update(row).eq('id', id);
+    if (error) throw error;
+  } catch (e) {
+    console.error('sbUpdateEnquiry failed:', e);
+    showToast('Save to cloud failed: ' + e.message, 'error');
+  }
+}
+async function sbDeleteEnquiry(id) {
+  try {
+    const { error } = await sb().from('enquiries').delete().eq('id', id);
+    if (error) throw error;
+  } catch (e) {
+    console.error('sbDeleteEnquiry failed:', e);
+    showToast('Save to cloud failed: ' + e.message, 'error');
+  }
+}
+
+// ---- CLASS LOG (class_log table) ----
+function _classRow(c) {
+  return {
+    academy_id: acadId(),
+    date: _toDateOrNull(c.date), batch: c.batch || '',
+    in_time: c.inTime || '', out_time: c.outTime || '',
+    duration: c.duration || '', note: c.note || '', created_by: c.by || ''
+  };
+}
+async function sbInsertClassLog(c) {
+  try {
+    const { data, error } = await sb().from('class_log').insert(_classRow(c)).select().single();
+    if (error) throw error;
+    return data;
+  } catch (e) {
+    console.error('sbInsertClassLog failed:', e);
+    showToast('Save to cloud failed: ' + e.message, 'error');
+    return null;
+  }
+}
+async function sbUpdateClassLog(id, c) {
+  try {
+    const row = _classRow(c); delete row.academy_id;
+    const { error } = await sb().from('class_log').update(row).eq('id', id);
+    if (error) throw error;
+  } catch (e) {
+    console.error('sbUpdateClassLog failed:', e);
+    showToast('Save to cloud failed: ' + e.message, 'error');
+  }
+}
+async function sbDeleteClassLog(id) {
+  try {
+    const { error } = await sb().from('class_log').delete().eq('id', id);
+    if (error) throw error;
+  } catch (e) {
+    console.error('sbDeleteClassLog failed:', e);
+    showToast('Save to cloud failed: ' + e.message, 'error');
+  }
+}
+
+// ---- AUDIT LOG (audit_log table) ----
+async function sbAddAudit(entry) {
+  const aid = acadId();
+  if (!aid) return;
+  try {
+    const { error } = await sb().from('audit_log').insert({
+      academy_id: aid, user_id: entry.user || '', role: entry.role || '',
+      action: entry.action || '', detail: entry.detail || ''
+    });
+    if (error) throw error;
+  } catch (e) {
+    console.error('sbAddAudit failed:', e);
+  }
+}
+
+// ---- SNAPSHOTS (snapshots table) ----
+async function sbAddSnapshot(snapKey, label, data) {
+  const aid = acadId();
+  if (!aid) return;
+  try {
+    const { error } = await sb().from('snapshots').insert({
+      academy_id: aid, snap_key: snapKey, label: label || '', data: data || {}
+    });
+    if (error) throw error;
+  } catch (e) {
+    console.error('sbAddSnapshot failed:', e);
+    showToast('Save to cloud failed: ' + e.message, 'error');
+  }
+}
+async function sbDeleteSnapshot(snapKey) {
+  const aid = acadId();
+  try {
+    const { error } = await sb().from('snapshots')
+      .delete().eq('academy_id', aid).eq('snap_key', snapKey);
+    if (error) throw error;
+  } catch (e) {
+    console.error('sbDeleteSnapshot failed:', e);
+    showToast('Save to cloud failed: ' + e.message, 'error');
+  }
+}
+
+// ---- APP USERS (app_users table) ----
+async function sbUpsertUser(authUid, u) {
+  const aid = acadId();
+  if (!aid) return;
+  try {
+    const { error } = await sb().from('app_users').upsert({
+      id: authUid,
+      academy_id: aid,
+      login_id: u.id || '',
+      email: u.email || '',
+      name: u.name || '',
+      role: u.role || 'staff',
+      assigned_batches: u.assignedBatches || []
+    });
+    if (error) throw error;
+  } catch (e) {
+    console.error('sbUpsertUser failed:', e);
+    showToast('Save to cloud failed: ' + e.message, 'error');
+  }
+}
+async function sbUpdateUserByLogin(loginId, fields) {
+  const aid = acadId();
+  if (!aid) return;
+  try {
+    const { error } = await sb().from('app_users')
+      .update(fields).eq('academy_id', aid).eq('login_id', loginId);
+    if (error) throw error;
+  } catch (e) {
+    console.error('sbUpdateUserByLogin failed:', e);
+    showToast('Save to cloud failed: ' + e.message, 'error');
+  }
+}
+async function sbDeleteUserByLogin(loginId) {
+  const aid = acadId();
+  try {
+    const { error } = await sb().from('app_users')
+      .delete().eq('academy_id', aid).eq('login_id', loginId);
+    if (error) throw error;
+  } catch (e) {
+    console.error('sbDeleteUserByLogin failed:', e);
+    showToast('Save to cloud failed: ' + e.message, 'error');
+  }
+}
+
+// ---- FULL DB PUSH (used by restore-backup and Firebase→Supabase migration) ----
+// Writes the entire in-memory DB up to Supabase. Students are inserted first to
+// obtain their uuids, then attendance/fees are written using those uuids.
+async function sbPushFullDB(opts) {
+  const aid = acadId();
+  if (!aid) { showToast('No academy id', 'error'); return false; }
+  const log = (opts && opts.onProgress) || (() => {});
+  try {
+    // 1. Settings (academies row)
+    log('Saving settings…');
+    await sbSaveSettings();
+
+    // 2. Batches — replace all
+    log('Saving batches…');
+    await sb().from('batches').delete().eq('academy_id', aid);
+    if (DB.batches && DB.batches.length) {
+      await sb().from('batches').insert(
+        DB.batches.map((name, i) => ({ academy_id: aid, name, sort_order: i }))
+      );
     }
-  }).catch(e => showToast('Pull failed: ' + e.message, 'error'));
-}
 
-// Login: fetch users from Firebase REST using Auth token
-async function fetchUsersForLogin() {
-  // Try /sacdb/users first, then fall back to /users (legacy path)
-  const paths = ['/sacdb/users', '/users'];
-  for (const path of paths) {
-    try {
-      const url = await fbRestUrl(path);
-      const headers = await fbHeaders();
-      const r = await fetch(url, { headers });
-      if (!r.ok) continue;
-      const data = await r.json();
-      if (!data) continue;
-      const arr = Array.isArray(data) ? data : Object.values(data);
-      if (arr.length > 0) return arr;
-    } catch(e) { continue; }
+    // 3. Students — insert and build oldId -> newUuid map
+    log('Saving students…');
+    const idMap = {}; // old in-memory id -> new uuid
+    if (DB.students && DB.students.length) {
+      const rows = DB.students.map(s => _studentRow(s));
+      const { data, error } = await sb().from('students').insert(rows).select();
+      if (error) throw error;
+      (data || []).forEach((row, i) => {
+        const orig = DB.students[i];
+        idMap[orig.id] = row.id;
+        orig._sid = row.id; // keep for later
+      });
+    }
+
+    // 4. Attendance — flatten { date: { studentId: status } }
+    log('Saving attendance…');
+    const attRows = [];
+    Object.keys(DB.attendance || {}).forEach(date => {
+      Object.keys(DB.attendance[date] || {}).forEach(oldSid => {
+        const newSid = idMap[oldSid] || oldSid;
+        attRows.push({ academy_id: aid, student_id: newSid, date, status: DB.attendance[date][oldSid] });
+      });
+    });
+    if (attRows.length) {
+      // Insert in chunks of 500 to stay safe
+      for (let i = 0; i < attRows.length; i += 500) {
+        await sb().from('attendance').upsert(attRows.slice(i, i+500), { onConflict: 'student_id,date' });
+      }
+    }
+
+    // 5. Fees — flatten { month: { studentId: {...} } }
+    log('Saving fees…');
+    const feeRows = [];
+    Object.keys(DB.fees || {}).forEach(month => {
+      Object.keys(DB.fees[month] || {}).forEach(oldSid => {
+        const f = DB.fees[month][oldSid];
+        const newSid = idMap[oldSid] || oldSid;
+        feeRows.push({
+          academy_id: aid, student_id: newSid, month,
+          status: f.status || '', amount: f.amount || null, method: f.method || '',
+          paid_date: _toDateOrNull(f.date), collected_by: f.by || '', msg_sent: f.msgSent || []
+        });
+      });
+    });
+    if (feeRows.length) {
+      for (let i = 0; i < feeRows.length; i += 500) {
+        await sb().from('fees').upsert(feeRows.slice(i, i+500), { onConflict: 'student_id,month' });
+      }
+    }
+
+    // 6. Enquiries
+    log('Saving enquiries…');
+    await sb().from('enquiries').delete().eq('academy_id', aid);
+    if (DB.enquiries && DB.enquiries.length) {
+      await sb().from('enquiries').insert(DB.enquiries.map(_enqRow));
+    }
+
+    // 7. Class log
+    log('Saving class log…');
+    await sb().from('class_log').delete().eq('academy_id', aid);
+    if (DB.classLog && DB.classLog.length) {
+      await sb().from('class_log').insert(DB.classLog.map(_classRow));
+    }
+
+    log('Done.');
+    return true;
+  } catch (e) {
+    console.error('sbPushFullDB failed:', e);
+    showToast('Full sync failed: ' + e.message, 'error');
+    return false;
   }
+}
+// Helper: convert "DD/MM/YYYY" or similar display date to ISO date, or null
+function _toDateOrNull(v) {
+  if (!v) return null;
+  // If already ISO (YYYY-MM-DD), keep it
+  if (/^\d{4}-\d{2}-\d{2}/.test(v)) return v.slice(0,10);
+  // Try DD/MM/YYYY or DD-MM-YYYY
+  const m = String(v).match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+  if (m) return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
   return null;
 }
+
+// ---- Legacy Firebase data-layer removed (app now uses Supabase) ----
+// Kept as a harmless no-op because an old comment references it.
+function scheduleFirebasePush() { /* no-op: writes go directly to Supabase */ }
+
 
 function isModalOpen() {
   const inputModals = ['modalStudent','modalFee','modalUser','modalAddBatch','modalNote','modalImport'];
@@ -3601,14 +4037,27 @@ function saveStudent() {
     if (editStudId) {
       const idx = DB.students.findIndex(s => s.id === editStudId);
       // Keep original rollNo on edit — do not overwrite
-      if (idx >= 0) DB.students[idx] = { ...DB.students[idx], ...data, rollNo: DB.students[idx].rollNo };
+      if (idx >= 0) {
+        DB.students[idx] = { ...DB.students[idx], ...data, rollNo: DB.students[idx].rollNo };
+        sbUpdateStudent(DB.students[idx]._sid, DB.students[idx]);
+      }
       addLog('student_edit', `Edited "${name}"`);
     } else {
-      DB.students.push({ id: 'S' + Date.now(), banned: false, ...data });
+      const newStud = { id: 'S' + Date.now(), banned: false, ...data };
+      DB.students.push(newStud);
       addLog('student_add', `Added "${name}"`);
+      // Insert into Supabase and capture the real uuid for future edits
+      sbInsertStudent(newStud).then(row => {
+        if (row) {
+          const idx = DB.students.findIndex(s => s.id === newStud.id);
+          if (idx >= 0) { DB.students[idx]._sid = row.id; DB.students[idx].id = row.id; }
+        }
+      });
       // If converted from an enquiry, remove the enquiry entry
       if (_convertingEnqId) {
-        DB.enquiries = (DB.enquiries||[]).filter(q => q.id !== _convertingEnqId);
+        const enqToDel = _convertingEnqId;
+        DB.enquiries = (DB.enquiries||[]).filter(q => q.id !== enqToDel);
+        sbDeleteEnquiry(enqToDel);
         addLog('enquiry', `Converted query to student: "${name}"`);
         _convertingEnqId = null;
         const noteEl = document.getElementById('convertFromEnqNote');
@@ -3616,8 +4065,6 @@ function saveStudent() {
       }
     }
     closeModal('modalStudent');
-    saveLocal();
-    scheduleFirebasePush(); // force immediate push after student save
     renderStudentList();
     if (currentPage === 'home') loadDashboard();
     showToast('Saved ✓','success');
@@ -3626,10 +4073,10 @@ function saveStudent() {
 function deleteStudent(id) {
   const s = DB.students.find(x => x.id === id);
   confirm_('🗑️','Delete Student',`Permanently delete "${s?.name}"? All attendance & fee data for this student will remain but be orphaned.`, () => {
+    const sid = s?._sid;
     DB.students = DB.students.filter(x => x.id !== id);
     addLog('student_delete', `Deleted "${s?.name}"`);
-    saveLocal();
-    scheduleFirebasePush();
+    if (sid) sbDeleteStudent(sid);
     renderStudentList();
     loadDashboard();
     showToast('Deleted','success');
@@ -3640,8 +4087,7 @@ function banStudent(id) {
   confirm_('🚫','Mark as Dropout',`Mark "${s?.name}" as dropout? They will be hidden from attendance and fee lists.`, () => {
     s.banned = true; s.bannedOn = new Date().toISOString();
     addLog('student_ban', `Marked dropout: "${s?.name}"`);
-    saveLocal();
-    scheduleFirebasePush();
+    if (s._sid) sbUpdateStudent(s._sid, s);
     renderStudentList(); loadDashboard();
     showToast('Marked as dropout','warn');
   });
@@ -3651,8 +4097,7 @@ function unbanStudent(id) {
   confirm_('✅','Restore Student',`Restore "${s?.name}" to active list?`, () => {
     s.banned = false; delete s.bannedOn;
     addLog('student_unban', `Restored: "${s?.name}"`);
-    saveLocal();
-    scheduleFirebasePush();
+    if (s._sid) sbUpdateStudent(s._sid, s);
     renderStudentList();
     showToast('Restored ✓','success');
   });
@@ -3815,6 +4260,7 @@ function confirmImport() {
   if (!importRows.length) return;
   confirm_('⬆️', 'Import Students', `Import ${importRows.length} student(s) into the database?`, () => {
     let added = 0, skipped = 0;
+    const newOnes = [];
     importRows.forEach(r => {
       // Skip only if exact same name AND contact already exists (avoid blocking re-imports with different batches)
       const dup = DB.students.find(s =>
@@ -3822,16 +4268,19 @@ function confirmImport() {
         s.contact && r.contact && s.contact === r.contact
       );
       if (dup) { skipped++; return; }
-      DB.students.push({
+      const stud = {
         id: 'st_' + Date.now() + '_' + Math.random().toString(36).slice(2,6),
         name: r.name, batch: r.batch, age: r.age, dob: r.dob,
         parent: r.parent, contact: r.contact, contact2: r.contact2,
         address: r.address, joinDate: r.joinDate || todayDisplay(),
         banned: false
-      });
+      };
+      DB.students.push(stud);
+      newOnes.push(stud);
       added++;
     });
-    scheduleFirebasePush();
+    // Bulk insert to Supabase, then map back the real uuids
+    sbBulkInsertStudents(newOnes);
     addLog('student_import', `Imported ${added} student(s)`);
     closeModal('modalImport');
     renderStudentList();
@@ -4219,40 +4668,33 @@ function renderStudentList() {
   let html = '';
   const row = (s, isBanned, num) => {
     const isChecked = selectedStudentIds.has(s.id);
+    const att = todayAtt[s.id];
+    const attBadge = att==='P'?'<span class="badge badge-green">✅</span>':att==='A'?'<span class="badge badge-red">❌</span>':'';
     return `
-    <div class="card" style="margin-bottom:4px;padding:8px 10px;${isBanned?'opacity:.65;border-color:#dc262655;':''}${isChecked?'border-color:var(--accent2);background:var(--card2);':''}">
-      <div style="display:flex;align-items:flex-start;gap:8px;">
+    <div class="card" style="margin-bottom:4px;padding:7px 10px;${isBanned?'opacity:.65;border-color:#dc262655;':''}${isChecked?'border-color:var(--accent2);background:var(--card2);':''}">
+      <div style="display:flex;align-items:center;gap:8px;">
         <!-- Checkbox -->
-        <label style="display:flex;align-items:center;padding-top:2px;flex-shrink:0;cursor:pointer;">
+        <label style="display:flex;align-items:center;flex-shrink:0;cursor:pointer;" onclick="event.stopPropagation();">
           <input type="checkbox" class="student-select-cb" data-id="${s.id}"
             ${isChecked?'checked':''}
             onchange="toggleStudentSelect('${s.id}',this)"
             style="width:17px;height:17px;accent-color:var(--accent2);cursor:pointer;flex-shrink:0;">
         </label>
-        <div style="display:flex;align-items:flex-start;gap:8px;flex:1;min-width:0;">
-          <div style="flex:1;min-width:0;">
-            <div style="font-size:14px;font-weight:700;display:flex;align-items:center;gap:5px;flex-wrap:wrap;">
-              ${s.rollNo ? `<span style="background:var(--accent2);color:#fff;border-radius:50%;min-width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;padding:0 4px;">${s.rollNo}</span>` : ''}
-              <span>${escHtml(s.name)}</span>
-              ${isBanned?'<span class="badge badge-red">Dropout</span>':''}
-              <span class="badge badge-blue">${escHtml(s.batch||'')}</span>
-              ${(()=>{ const v=todayAtt[s.id]; return v==='P'?'<span class="badge badge-green">✅ Present</span>':v==='A'?'<span class="badge badge-red">❌ Absent</span>':''; })()}
-            </div>
-            <div style="font-size:11px;color:var(--gray);margin-top:1px;">
-              ${s.age?'Age: '+s.age:''} ${s.dob?'• DOB: '+s.dob:''}
-            </div>
-            ${s.contact?`<div style="font-size:12px;margin-top:1px;"><a href="tel:${escHtml(s.contact)}" style="color:var(--accent2);">📞 ${s.contact}</a>${s.contact2?` <a href="tel:${escHtml(s.contact2)}" style="color:var(--gray);margin-left:8px;">${s.contact2}</a>`:''}</div>`:''}
-            ${s.parent?`<div style="font-size:11px;color:var(--gray);margin-top:1px;">Parent: ${escHtml(s.parent)}</div>`:''}
-            ${s.address?`<div style="font-size:11px;color:var(--graydk);margin-top:1px;">🏫 ${escHtml(s.address)}</div>`:''}
-            ${s.joinDate?`<div style="font-size:10px;color:var(--graydk);margin-top:1px;">Joined: ${s.joinDate}</div>`:''}
+        <!-- Tappable compact info -->
+        <div style="flex:1;min-width:0;cursor:pointer;" onclick="openStudentDetail('${s.id}')">
+          <div style="font-size:14px;font-weight:700;display:flex;align-items:center;gap:5px;flex-wrap:wrap;">
+            ${s.rollNo ? `<span style="background:var(--accent2);color:#fff;border-radius:50%;min-width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;padding:0 4px;">${s.rollNo}</span>` : ''}
+            <span>${escHtml(s.name)}</span>
+            ${isBanned?'<span class="badge badge-red">Dropout</span>':''}
+            <span class="badge badge-blue">${escHtml(s.batch||'')}</span>
+            ${attBadge}
+          </div>
+          <div style="font-size:12px;color:var(--gray);margin-top:2px;display:flex;gap:12px;flex-wrap:wrap;">
+            ${s.contact?`<span>📞 ${escHtml(s.contact)}</span>`:''}
+            ${s.joinDate?`<span style="color:var(--graydk);">📅 ${s.joinDate}</span>`:''}
           </div>
         </div>
-        <div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0;">
-          <button class="btn btn-primary btn-xs" onclick="openAddStudentModal('${s.id}')">✏️ Edit</button>
-          <button class="btn btn-danger btn-xs" onclick="deleteStudent('${s.id}')">🗑️ Delete</button>
-          ${!isBanned?`<button class="btn btn-warning btn-xs" onclick="banStudent('${s.id}')">🚫 Block</button>`
-            :`<button class="btn btn-success btn-xs" onclick="unbanStudent('${s.id}')">✅ Restore</button>`}
-        </div>
+        <div style="color:var(--graydk);font-size:16px;flex-shrink:0;" onclick="openStudentDetail('${s.id}')">›</div>
       </div>
     </div>`;
   };
@@ -4265,6 +4707,40 @@ function renderStudentList() {
   if (!html) html = `<div class="empty-state">No students found.</div>`;
   document.getElementById('studentListWrap').innerHTML = html;
   updateStudentSelectToolbar();
+}
+
+// Student detail popup — full info + actions
+function openStudentDetail(id) {
+  const s = DB.students.find(x => x.id === id);
+  if (!s) return;
+  const isBanned = !!s.banned;
+  const att = (DB.attendance[todayStr()]||{})[s.id];
+  const attTxt = att==='P'?'✅ Present today':att==='A'?'❌ Absent today':'— Not marked today';
+  const row = (label, val) => val ? `<div style="display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid var(--border);"><span style="color:var(--gray);font-size:12px;">${label}</span><span style="font-size:13px;font-weight:600;text-align:right;">${escHtml(String(val))}</span></div>` : '';
+  document.getElementById('studentDetailBody').innerHTML = `
+    <div style="text-align:center;margin-bottom:12px;">
+      <div style="font-size:18px;font-weight:800;">${escHtml(s.name)}</div>
+      <div style="margin-top:4px;">
+        <span class="badge badge-blue">${escHtml(s.batch||'')}</span>
+        ${s.rollNo?`<span class="badge badge-gold">Roll ${s.rollNo}</span>`:''}
+        ${isBanned?'<span class="badge badge-red">Dropout</span>':''}
+      </div>
+      <div style="font-size:11px;color:var(--gray);margin-top:6px;">${attTxt}</div>
+    </div>
+    ${row('Age', s.age)}
+    ${row('Date of Birth', s.dob)}
+    ${row('Contact 1', s.contact)}
+    ${row('Contact 2', s.contact2)}
+    ${row('Parent / Guardian', s.parent)}
+    ${row('School', s.address)}
+    ${row('Joined', s.joinDate)}
+    <div style="display:flex;gap:6px;margin-top:14px;">
+      <button class="btn btn-primary btn-sm" style="flex:1;" onclick="closeModal('modalStudentDetail');openAddStudentModal('${s.id}')">✏️ Edit</button>
+      ${!isBanned?`<button class="btn btn-warning btn-sm" style="flex:1;" onclick="closeModal('modalStudentDetail');banStudent('${s.id}')">🚫 Block</button>`
+        :`<button class="btn btn-success btn-sm" style="flex:1;" onclick="closeModal('modalStudentDetail');unbanStudent('${s.id}')">✅ Restore</button>`}
+      <button class="btn btn-danger btn-sm" style="flex:1;" onclick="closeModal('modalStudentDetail');deleteStudent('${s.id}')">🗑️ Delete</button>
+    </div>`;
+  openModal('modalStudentDetail');
 }
 
 // ── Bulk Edit ─────────────────────────────────────────────────────
@@ -4307,16 +4783,18 @@ function saveBulkEdit() {
 
   const count = selectedStudentIds.size;
   confirm_('✏️', 'Bulk Edit', `Apply changes to ${count} student(s)?`, () => {
+    const changed = [];
     selectedStudentIds.forEach(id => {
       const idx = DB.students.findIndex(s => s.id === id);
       if (idx < 0) return;
       if (school)   DB.students[idx].address  = school;
       if (joinDate) DB.students[idx].joinDate = joinDate;
       if (batch)    DB.students[idx].batch    = batch;
+      changed.push(DB.students[idx]);
     });
     addLog('student_bulk_edit', `Bulk edited ${count} student(s): ${[school&&'school',joinDate&&'joinDate',batch&&'batch'].filter(Boolean).join(', ')}`);
     closeModal('modalBulkEdit');
-    scheduleFirebasePush();
+    changed.forEach(st => { if (st._sid) sbUpdateStudent(st._sid, st); });
     selectedStudentIds.clear();
     renderStudentList();
     renderBatchChips('student');
@@ -4473,8 +4951,7 @@ function markAttendance(sid, dateKey, status) {
       () => {
         delete DB.attendance[dateKey][sid];
         if (Object.keys(DB.attendance[dateKey]).length === 0) delete DB.attendance[dateKey];
-        saveLocal();
-        scheduleFirebasePush();
+        sbClearAttendance(sid, dateKey);
         addLog('attendance', `${name} → cleared on ${dateKey}`);
         renderAttendance();
       }
@@ -4490,8 +4967,7 @@ function markAttendance(sid, dateKey, status) {
       `Change ${name} from ${fromLabel} → ${toLabel} on ${dateKey}?`,
       () => {
         DB.attendance[dateKey][sid] = status;
-        saveLocal();
-        scheduleFirebasePush();
+        sbSetAttendance(sid, dateKey, status, currentUser ? (currentUser.name||currentUser.id) : '');
         addLog('attendance', `${name} → ${status} on ${dateKey}`);
         renderAttendance();
       }
@@ -4501,8 +4977,7 @@ function markAttendance(sid, dateKey, status) {
 
   // Fresh mark (no existing entry)
   DB.attendance[dateKey][sid] = status;
-  saveLocal();
-  scheduleFirebasePush();
+  sbSetAttendance(sid, dateKey, status, currentUser ? (currentUser.name||currentUser.id) : '');
   addLog('attendance', `${name} → ${status} on ${dateKey}`);
   renderAttendance();
 }
@@ -4527,8 +5002,7 @@ function markAllAttendance(dateKey, status, checked) {
     confirm_('✅', `Mark All ${label}`, `Mark all ${enrolled.length} student(s) as ${label} on ${dateKey}?`, () => {
       if (!DB.attendance[dateKey]) DB.attendance[dateKey] = {};
       enrolled.forEach(s => { DB.attendance[dateKey][s.id] = status; });
-      saveLocal();
-      scheduleFirebasePush();
+      sbSetAttendanceBulk(enrolled.map(s => s.id), dateKey, status, currentUser ? (currentUser.name||currentUser.id) : '');
       addLog('attendance', `All students → ${status} on ${dateKey}`);
       showToast(`All marked ${label} ✓`, 'success');
       renderAttendance();
@@ -4539,12 +5013,12 @@ function markAllAttendance(dateKey, status, checked) {
   } else {
     confirm_('🗑️', `Clear All ${label}`, `Remove ${label} mark for all students on ${dateKey}?`, () => {
       if (!DB.attendance[dateKey]) { renderAttendance(); return; }
+      const cleared = [];
       enrolled.forEach(s => {
-        if (DB.attendance[dateKey][s.id] === status) delete DB.attendance[dateKey][s.id];
+        if (DB.attendance[dateKey][s.id] === status) { delete DB.attendance[dateKey][s.id]; cleared.push(s.id); }
       });
       if (!Object.keys(DB.attendance[dateKey]).length) delete DB.attendance[dateKey];
-      saveLocal();
-      scheduleFirebasePush();
+      sbClearAttendanceBulk(cleared, dateKey);
       addLog('attendance', `All ${status} cleared on ${dateKey}`);
       showToast(`All ${label} marks cleared ✓`, 'success');
       renderAttendance();
@@ -4947,9 +5421,9 @@ function saveFeeEntry() {
   const s = DB.students.find(x => x.id === sid);
   confirm_('💳','Save Payment',`Save fee for "${s?.name}" — ${MONTHS[m-1]} ${y}?`, () => {
     if (!DB.fees[fk]) DB.fees[fk] = {};
-    DB.fees[fk][sid] = { status, amount, method, date: new Date().toISOString(), by: currentUser.name || currentUser.id };
-    saveLocal();
-    scheduleFirebasePush();
+    const feeObj = { status, amount, method, date: new Date().toISOString(), by: currentUser.name || currentUser.id };
+    DB.fees[fk][sid] = feeObj;
+    sbSetFee(sid, fk, feeObj);
     addLog('fee', `${s?.name}: ${status} ₹${amount} for ${fk}`);
     closeModal('modalFee');
     renderFees();
@@ -5192,14 +5666,15 @@ function openSendAllMsgModal(fk) {
           const sentAt = new Date().toISOString();
           if (!DB.msgLogs) DB.msgLogs = [];
           DB.msgLogs.unshift({ id: 'ml_'+Date.now()+'_'+Math.random().toString(36).slice(2,8), type: 'whatsapp', to: s.name, contact: s.contact, month: monthLabel, by: sentBy, at: sentAt, msg });
+          sbAddMsgLog({ type: 'whatsapp', to: s.name, contact: s.contact, month: monthLabel, by: sentBy, at: sentAt, msg });
           if (!DB.fees[fk]) DB.fees[fk] = {};
           if (!DB.fees[fk][s.id]) DB.fees[fk][s.id] = {};
           if (!DB.fees[fk][s.id].msgSent) DB.fees[fk][s.id].msgSent = [];
           DB.fees[fk][s.id].msgSent.push({ type: 'whatsapp', by: sentBy, at: sentAt });
+          sbSetFee(s.id, fk, DB.fees[fk][s.id]);
         }, i * 600);
       });
       setTimeout(() => {
-        scheduleFirebasePush();
         addLog('message', `Bulk fee reminder (WhatsApp) sent to ${unpaid.length} students for ${monthLabel}`);
         renderFees();
         showToast(`Reminders sent to ${unpaid.length} students ✓`, 'success');
@@ -5230,7 +5705,7 @@ function saveProfileMsgTemplate() {
   const val = (document.getElementById('profileMsgTemplate').value || '').trim();
   if (!val) { showToast('Template cannot be empty', 'error'); return; }
   DB.settings.msgTemplate = val;
-  scheduleFirebasePush();
+  sbSaveSettings();
   addLog('settings', 'Fee reminder message template updated');
   showToast('Template saved ✓', 'success');
 }
@@ -5239,7 +5714,7 @@ function saveMsgTemplate() {
   const val = document.getElementById('msgTemplateInput').value.trim();
   if (!val) { showToast('Template cannot be empty', 'error'); return; }
   DB.settings.msgTemplate = val;
-  scheduleFirebasePush();
+  sbSaveSettings();
   addLog('settings', 'Fee reminder message template updated');
   closeModal('modalMsgTemplate');
   showToast('Template saved ✓', 'success');
@@ -5288,7 +5763,8 @@ function sendFeeMsg(type) {
   if (!DB.fees[fk][_sendMsgStudId]) DB.fees[fk][_sendMsgStudId] = {};
   if (!DB.fees[fk][_sendMsgStudId].msgSent) DB.fees[fk][_sendMsgStudId].msgSent = [];
   DB.fees[fk][_sendMsgStudId].msgSent.push({ type, by: sentBy, at: sentAt });
-  scheduleFirebasePush();
+  sbSetFee(_sendMsgStudId, fk, DB.fees[fk][_sendMsgStudId]);
+  sbAddMsgLog({ type, to: s.name, contact: s.contact, month: monthLabel, by: sentBy, at: sentAt, msg: msgText });
   addLog('message', `Fee reminder sent (${type}) to ${s.name} for ${monthLabel}`);
   closeModal('modalSendMsg');
   renderFees();
@@ -6298,44 +6774,60 @@ function importAllData(e) {
   const statusEl = document.getElementById('importDataStatus');
   const reader = new FileReader();
   reader.onload = ev => {
+    let parsed;
     try {
-      const parsed = JSON.parse(ev.target.result);
-      // Basic validation
-      if (!parsed.students || !parsed.settings || !parsed.attendance || !parsed.fees) {
-        throw new Error('Invalid backup file — missing required fields.');
-      }
-      confirm_('⬆️', 'Import Data',
-        'This will REPLACE all current data with the backup. This cannot be undone. Continue?',
-        () => {
-          DB = Object.assign({}, DB, parsed);
-          saveLocal();
-          scheduleFirebasePush();
-          updateLogos();
-          initDashFilters();
-          initFeeFilters();
-          initAttFilters();
-          renderStudentList();
-          loadDashboard();
-          renderProfilePage();
-          addLog('settings', 'Data restored from backup');
-          if (statusEl) {
-            statusEl.style.display = '';
-            statusEl.style.color = '#4ade80';
-            statusEl.textContent = '✅ Data restored — ' + parsed.students.length + ' students, ' +
-              Object.keys(parsed.attendance).length + ' attendance days, ' +
-              Object.keys(parsed.fees).length + ' fee months.';
-          }
-          showToast('Data restored ✓', 'success');
-        }
-      );
+      parsed = JSON.parse(ev.target.result);
     } catch (err) {
-      if (statusEl) {
-        statusEl.style.display = '';
-        statusEl.style.color = '#f87171';
-        statusEl.textContent = '⚠️ ' + err.message;
-      }
-      showToast('Import failed', 'error');
+      if (statusEl) { statusEl.style.display=''; statusEl.style.color='#f87171'; statusEl.textContent='⚠️ Not a valid JSON file.'; }
+      showToast('Import failed: invalid JSON', 'error');
+      e.target.value = '';
+      return;
     }
+    // Lenient validation — only students + settings are essential
+    if (!parsed.students || !parsed.settings) {
+      if (statusEl) { statusEl.style.display=''; statusEl.style.color='#f87171'; statusEl.textContent='⚠️ Invalid backup — missing students or settings.'; }
+      showToast('Import failed: missing data', 'error');
+      e.target.value = '';
+      return;
+    }
+    confirm_('⬆️', 'Import Data',
+      `Import ${parsed.students.length} students and all related data into Supabase?`,
+      async () => {
+        try {
+          // Merge parsed data into DB, ensuring all arrays/objects exist
+          DB = Object.assign({}, DB, parsed);
+          DB.attendance = DB.attendance || {};
+          DB.fees = DB.fees || {};
+          DB.enquiries = DB.enquiries || [];
+          DB.classLog = DB.classLog || [];
+          DB.batches = DB.batches || [];
+
+          if (statusEl) { statusEl.style.display=''; statusEl.style.color='#888'; statusEl.textContent='⏳ Uploading to Supabase…'; }
+
+          const ok = await sbPushFullDB({ onProgress: (m) => {
+            if (statusEl) statusEl.textContent = '⏳ ' + m;
+          }});
+
+          if (!ok) throw new Error('Upload to Supabase failed — see console for details.');
+
+          updateLogos();
+          initDashFilters(); initFeeFilters(); initAttFilters();
+          renderStudentList(); loadDashboard(); renderProfilePage();
+          addLog('settings', 'Data migrated from backup');
+          if (statusEl) {
+            statusEl.style.color = '#4ade80';
+            statusEl.textContent = '✅ Migrated — ' + (parsed.students.length||0) + ' students, ' +
+              Object.keys(DB.attendance).length + ' attendance days, ' +
+              Object.keys(DB.fees).length + ' fee months.';
+          }
+          showToast('Data migrated ✓', 'success');
+        } catch (err) {
+          console.error('Import/migration error:', err);
+          if (statusEl) { statusEl.style.display=''; statusEl.style.color='#f87171'; statusEl.textContent='⚠️ ' + (err.message||'Migration failed'); }
+          showToast('Import failed: ' + (err.message||'see console'), 'error');
+        }
+      }
+    );
     e.target.value = '';
   };
   reader.readAsText(file);
@@ -6395,8 +6887,8 @@ async function renderProfilePage() {
   const dataCard = document.getElementById('dataCard');
   if (dataCard) dataCard.style.display = isAdmin() ? '' : 'none';
 
-
-  document.getElementById('lastPushInfo').textContent = DB.settings.lastPush
+  const lpi = document.getElementById('lastPushInfo');
+  if (lpi) lpi.textContent = DB.settings.lastPush
     ? new Date(DB.settings.lastPush).toLocaleString() + ' by ' + (DB.settings.lastPushBy||'?')
     : 'Never';
   updateLogos();
@@ -6509,8 +7001,7 @@ function saveAcadDetails() {
     DB.settings.phone   = phone   || DB.settings.phone;
     DB.settings.tagline = tagline;
     DB.settings.loginSupport = loginSupport;
-    saveLocal();
-    scheduleFirebasePush();
+    sbSaveSettings();
     addLog('settings','Academy profile updated');
     applyAcadSettings();
     showToast('Profile saved ✓','success');
@@ -6547,8 +7038,7 @@ function changeLoginBg(e) {
   const reader = new FileReader();
   reader.onload = ev => {
     DB.settings.loginBgUrl = ev.target.result;
-    saveLocal();
-    scheduleFirebasePush();
+    sbSaveSettings();
     applyLoginBg();
     updateLoginBgPreview();
     addLog('settings','Login background changed');
@@ -6560,8 +7050,7 @@ function changeLoginBg(e) {
 function removeLoginBg() {
   confirm_('🗑️','Remove Background','Remove the login page background image?', () => {
     DB.settings.loginBgUrl = '';
-    saveLocal();
-    scheduleFirebasePush();
+    sbSaveSettings();
     applyLoginBg();
     updateLoginBgPreview();
     addLog('settings','Login background removed');
@@ -6623,8 +7112,7 @@ function saveNewBatch() {
   if (DB.batches.includes(name)) { showToast('Batch already exists','error'); return; }
   confirm_('➕','Add Batch',`Add batch "${name}"?`, () => {
     DB.batches.push(name);
-    saveLocal();
-    scheduleFirebasePush();
+    sbAddBatch(name, DB.batches.length - 1);
     addLog('batch_add', `Added batch "${name}"`);
     closeModal('modalAddBatch');
     renderBatchList();
@@ -6639,8 +7127,7 @@ function renameBatch(i) {
   confirm_('✏️','Rename Batch',`Rename "${old}" → "${newName}"?`, () => {
     DB.students.forEach(s => { if (s.batch===old) s.batch=newName; });
     DB.batches[i] = newName;
-    saveLocal();
-    scheduleFirebasePush();
+    sbRenameBatch(old, newName);
     addLog('batch_rename', `"${old}" → "${newName}"`);
     renderBatchList();
     renderBatchChips('student'); renderBatchChips('att'); renderBatchChips('fee');
@@ -6654,8 +7141,7 @@ function deleteBatch(i) {
     const fallback = DB.batches.filter((_,j)=>j!==i)[0] || '';
     DB.students.forEach(s => { if (s.batch===old) s.batch=fallback; });
     DB.batches.splice(i,1);
-    saveLocal();
-    scheduleFirebasePush();
+    sbDeleteBatch(old, fallback);
     addLog('batch_delete', `Deleted batch "${old}"`);
     renderBatchList();
     renderBatchChips('student'); renderBatchChips('att'); renderBatchChips('fee');
@@ -6677,7 +7163,7 @@ function renderUserList() {
         </div>
         <div style="display:flex;gap:5px;flex-shrink:0;">
           ${u.role==='staff'?`<button onclick="openAssignBatchModal('${escHtml(u.id)}')" class="btn btn-gold btn-xs">📦 Batch</button>`:''}
-          <button onclick="openEditUser('${escHtml(u.id)}')" class="btn btn-outline btn-xs">✏️ Edit</button>
+          ${u.role==='staff'?`<button onclick="openEditUser('${escHtml(u.id)}')" class="btn btn-outline btn-xs">✏️ Edit</button>`:''}
         </div>
       </div>
       ${u.role==='staff'?`<div style="margin-top:6px;display:flex;gap:4px;flex-wrap:wrap;align-items:center;">
@@ -6745,32 +7231,20 @@ async function saveUser() {
 
   const uid = email.replace(/[^a-z0-9]/g, '_');
 
-  // For edits — update database profile, and optionally update Firebase Auth password
+  // For edits — update database profile (name, role, batches)
   if (eid) {
     confirm_('👤','Save User',`Update profile for "${email}"?`, async () => {
       const idx = DB.users.findIndex(u => u.id===eid);
-      if (idx>=0) DB.users[idx] = { ...DB.users[idx], id:uid, email, name:name||email, role, assignedBatches: getSelectedBatchAssignments() };
-      saveLocal();
-      scheduleFirebasePush();
+      const newBatches = getSelectedBatchAssignments();
+      if (idx>=0) DB.users[idx] = { ...DB.users[idx], id:uid, email, name:name||email, role, assignedBatches: newBatches };
+      // Update the app_users profile row in Supabase (by old login id)
+      await sbUpdateUserByLogin(eid, {
+        login_id: uid, email, name: name||email, role, assigned_batches: newBatches
+      });
       addLog('user', `Edited user "${email}"`);
-      // If a new password was entered, update it in Firebase Auth
-      if (pass && pass.length >= 6) {
-        try {
-          const fbApiKey = window._fbAuth && window._fbAuth.app && window._fbAuth.app.options
-            ? window._fbAuth.app.options.apiKey : null;
-          // Need to sign in as that user to update — skip silently if not possible
-          // Instead, use admin's token to update via Firebase REST
-          const fbUser = window._fbAuth && window._fbAuth.currentUser;
-          if (fbUser) {
-            const idToken = await fbUser.getIdToken();
-            // Get the UID of the user to update — fetch from Firebase Auth by email
-            const lookupRes = await fetch(
-              'https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=' + fbApiKey,
-              { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({idToken}) }
-            );
-          }
-        } catch(e) { /* password update failed silently */ }
-      }
+      // NOTE: changing a Supabase Auth user's password from the client isn't
+      // possible with the anon key. Password changes need the Supabase dashboard
+      // or an Edge Function. (Flagged for Stage D.)
       closeModal('modalUser');
       renderUserList();
       showToast('User updated ✓', 'success');
@@ -6778,43 +7252,21 @@ async function saveUser() {
     return;
   }
 
-  // For new users — create Firebase Auth account first via REST API
+  // For new users — create the Supabase Auth account via an Edge Function,
+  // then save the profile row. (Edge Function 'create-user' must be deployed.)
   confirm_('👤','Create User',`Create login for "${email}" as ${role}?`, async () => {
     if (btn) { btn.textContent = 'Creating...'; btn.disabled = true; }
     try {
-      // Use admin's ID token to create user — requires Identity Toolkit API enabled
-      // and public signup disabled. This is the secure approach.
-      const fbUser = window._fbAuth && window._fbAuth.currentUser;
-      if (!fbUser) throw new Error('Not logged in. Please refresh and try again.');
-      const idToken = await fbUser.getIdToken(true);
-      const projectId = window._fbAuth.app.options.projectId;
-      if (!projectId) throw new Error('Firebase project not initialised.');
+      const { data, error } = await sb().functions.invoke('create-user', {
+        body: { email, password: pass, name: name||email, role: 'staff',
+                academy_id: acadId(), login_id: uid,
+                assigned_batches: getSelectedBatchAssignments() }
+      });
+      if (error) throw new Error(error.message || 'Failed to create user');
+      if (data && data.error) throw new Error(data.error);
 
-      const res = await fetch(
-        'https://identitytoolkit.googleapis.com/v1/projects/' + projectId + '/accounts',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer ' + idToken
-          },
-          body: JSON.stringify({ email, password: pass, displayName: name || email })
-        }
-      );
-      const data = await res.json();
-      if (!res.ok) {
-        const msg = (data.error && data.error.message) || 'Failed to create account';
-        if (msg.includes('EMAIL_EXISTS')) throw new Error('This email already has a Firebase account.');
-        if (msg.includes('WEAK_PASSWORD')) throw new Error('Password too weak — use at least 6 characters.');
-        if (msg.includes('INVALID_EMAIL')) throw new Error('Invalid email address.');
-        if (msg.includes('INSUFFICIENT_PERMISSION') || res.status === 403) throw new Error('Permission denied. Make sure Identity Toolkit API is enabled in Google Cloud Console for your project.');
-        throw new Error(msg);
-      }
-
-      // Auth account created — now save profile to database
-      DB.users.push({ id:uid, email, name:name||email, role, assignedBatches: getSelectedBatchAssignments() });
-      saveLocal();
-      scheduleFirebasePush();
+      // Profile is created server-side by the function; reflect locally
+      DB.users.push({ id:uid, uid: data && data.uid, email, name:name||email, role, assignedBatches: getSelectedBatchAssignments() });
       addLog('user', `Added user "${email}" (${role})`);
       closeModal('modalUser');
       renderUserList();
@@ -6829,13 +7281,14 @@ async function saveUser() {
   });
 }
 function deleteUser(id) {
-  confirm_('🗑️','Delete User',`Delete user "${id}"? This cannot be undone.`, () => {
+  confirm_('🗑️','Delete User',`Delete user "${id}"? This cannot be undone.`, async () => {
     DB.users = DB.users.filter(u => u.id!==id);
-    saveLocal();
-    scheduleFirebasePush();
+    await sbDeleteUserByLogin(id);
     addLog('user','Deleted user "'+id+'"');
     renderUserList();
     showToast('Deleted','success');
+    // NOTE: this removes the profile row. Removing the Auth login itself
+    // needs the dashboard or an Edge Function (flagged for Stage D).
   });
 }
 
@@ -6874,8 +7327,7 @@ function changeLogo(e) {
   const reader = new FileReader();
   reader.onload = ev => {
     DB.settings.logoUrl = ev.target.result;
-    saveLocal();
-    scheduleFirebasePush();
+    sbSaveSettings();
     updateLogos();
     addLog('settings','Logo changed');
     showToast('Logo updated ✓','success');
@@ -6907,9 +7359,8 @@ function openNoteModal() {
 }
 function saveNote() {
   DB.notes = document.getElementById('noteText').value;
-  saveLocal();
   addLog('notes', 'Notes updated');
-  scheduleFirebasePush();
+  sbSaveSettings(); // notes is a column on the academies row
   closeModal('modalNote');
   showToast('Note saved ✓','success');
 }
@@ -7349,6 +7800,9 @@ setInterval(() => {
   if (!window._onAuthStateChanged) { setTimeout(waitForAuth, 100); return; }
   window._onAuthStateChanged(async (firebaseUser) => {
     if (!firebaseUser) return; // not signed in — stay on login screen
+    // Supabase fires this on token refresh / tab focus too. Only launch once;
+    // ignore later events if the app is already running.
+    if (_appLaunched || currentUser) return;
     // Check session timeout
     try {
       const lastActive = parseInt(localStorage.getItem('sac_session_time') || '0', 10);
@@ -7358,12 +7812,19 @@ setInterval(() => {
         return;
       }
     } catch(e) {}
-    // Signed in — fetch app user profile and launch
+    // Signed in — fetch app user profile from Supabase and launch
     try {
-      const users = await fetchUsersForLogin();
-      const user = users && users.find(u => u.email === firebaseUser.email || u.id === firebaseUser.email);
+      _appLaunched = true;
+      const { data: profile } = await window._sb
+        .from('app_users').select('*').eq('id', firebaseUser.id).single();
+      const user = profile ? {
+        id: profile.login_id || profile.email, uid: profile.id, academyId: profile.academy_id,
+        email: profile.email, name: profile.name, role: profile.role,
+        assignedBatches: profile.assigned_batches || []
+      } : null;
       if (!user) { if (window._fbSignOut) await window._fbSignOut(); return; }
-      DB.users = users;
+      _currentAcademyId = user.academyId;
+      DB.users = [user];
       currentUser = user;
       touchSession();
       const overlay = document.getElementById('loadingOverlay');
@@ -7374,13 +7835,11 @@ setInterval(() => {
       if (nameEl) nameEl.textContent = greetingText() + ', ' + (user.name || user.id);
       applyRoleUI();
       updateLogos();
-      initFirebase().then(() => {
+      loadAllData().then(() => {
         finishLoadProgress(() => {
           if (overlay) overlay.classList.remove('active');
-          updateLogos();  // refresh logo now that DB.settings.logoUrl is loaded
-          applyAcadSettings();  // refresh academy name/tagline now that settings are loaded
-          // Log the auto-login only AFTER the pull has populated DB,
-          // otherwise the push could race the pull and wipe cloud data.
+          updateLogos();
+          applyAcadSettings();
           addLog('login', 'Auto-login (session restored)');
           showToast('Welcome back, ' + (user.name || user.id) + '! ✓', 'success');
           launchApp();
@@ -7451,7 +7910,7 @@ function saveClassLogEdit() {
   if (idx < 0) return;
   DB.classLog[idx] = { ...DB.classLog[idx], date, batch, inTime, outTime, duration, note };
 
-  scheduleFirebasePush();
+  sbUpdateClassLog(DB.classLog[idx].id, DB.classLog[idx]);
   addLog('classlog', `Class log edited: ${batch} on ${date}`);
   showToast('Entry updated ✓', 'success');
   closeModal('modalClassLogEdit');
@@ -7484,13 +7943,19 @@ function saveClassLog() {
   if (!Array.isArray(DB.classLog)) DB.classLog = [];
 
   const by = currentUser ? (currentUser.name || currentUser.id) : 'Unknown';
-  DB.classLog.unshift({
+  const newLog = {
     id: 'cl_' + Date.now(),
     date, batch, inTime, outTime, duration, note, by,
     at: new Date().toISOString()
-  });
+  };
+  DB.classLog.unshift(newLog);
 
-  scheduleFirebasePush();
+  sbInsertClassLog(newLog).then(row => {
+    if (row) {
+      const idx = DB.classLog.findIndex(x => x.id === newLog.id);
+      if (idx >= 0) DB.classLog[idx].id = row.id;
+    }
+  });
   addLog('classlog', `Class logged: ${batch} on ${date} by ${by}`);
   showToast('Class entry saved ✓', 'success');
   closeModal('modalClassLogAdd');
@@ -7564,29 +8029,8 @@ function deleteClassLog(id) {
   confirm_('🗑️', 'Delete Entry', 'Delete this class log entry?', async () => {
     // Remove from local DB
     DB.classLog = (DB.classLog || []).filter(e => e.id !== id);
-
-    // Directly delete from Firebase if connected
-    if (fbDb) {
-      try {
-        const _fbUser = window._fbAuth && window._fbAuth.currentUser;
-        const _token  = _fbUser ? await _fbUser.getIdToken() : '';
-        const _auth   = _token ? '?auth=' + encodeURIComponent(_token) : '';
-        // Push the full updated classLog array to Firebase
-        const url = fbBaseUrl() + '/sacdb/classLog.json' + _auth;
-        const _hdrs = await fbHeaders({ 'Content-Type': 'application/json' });
-        await fetch(url, {
-          method: 'PUT',
-          headers: _hdrs,
-          body: JSON.stringify(DB.classLog)
-        });
-      } catch(e) {
-        // Fallback to scheduled push
-        scheduleFirebasePush();
-      }
-    } else {
-      scheduleFirebasePush();
-    }
-
+    // Delete from Supabase
+    sbDeleteClassLog(id);
     addLog('classlog', 'Deleted class log entry ' + id);
     showToast('Entry deleted ✓', 'success');
     renderClassLog();
@@ -7676,7 +8120,7 @@ function saveAssignBatch() {
   if (idx < 0) return;
   const userName = DB.users[idx].name || DB.users[idx].email || userId;
   DB.users[idx].assignedBatches = assignedBatches;
-  scheduleFirebasePush();
+  sbUpdateUserByLogin(userId, { assigned_batches: assignedBatches });
   addLog('user', `Batch assigned to "${userName}": ${assignedBatches.join(', ') || 'All batches'}`);
   closeModal('modalAssignBatch');
   renderUserList();
@@ -7720,20 +8164,15 @@ async function renderSnapshotListSettings() {
   if (!wrap) return;
   wrap.innerHTML = '<div class="empty-state" style="padding:14px;">🔄 Loading snapshots…</div>';
   let list = [];
-  if (fbDb) {
-    try {
-      const remote = await fbGet('/snapshots');
-      if (remote && typeof remote === 'object') {
-        list = Object.keys(remote).map(key => {
-          const snap = remote[key];
-          return { key, time: snap._snapTime || new Date().toISOString(), label: snap._snapLabel || 'auto' };
-        }).sort((a, b) => b.key.localeCompare(a.key));
-        DB.snapshotIndex = list.map(s => ({ key: s.key, time: s.time, label: s.label }));
-      }
-    } catch(e) {
-      list = Array.isArray(DB.snapshotIndex) ? [...DB.snapshotIndex].sort((a,b) => b.key.localeCompare(a.key)) : [];
-    }
-  } else {
+  try {
+    const aid = acadId();
+    const { data, error } = await sb().from('snapshots')
+      .select('snap_key,label,created_at').eq('academy_id', aid)
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    list = (data || []).map(s => ({ key: s.snap_key, time: s.created_at, label: s.label || 'auto' }));
+    DB.snapshotIndex = list.map(s => ({ key: s.key, time: s.time, label: s.label }));
+  } catch(e) {
     list = Array.isArray(DB.snapshotIndex) ? [...DB.snapshotIndex].sort((a,b) => b.key.localeCompare(a.key)) : [];
   }
   if (!list.length) {
@@ -7764,15 +8203,9 @@ async function renderSnapshotListSettings() {
 async function deleteSnapshotSettings(key) {
   confirm_('🗑️', 'Delete Snapshot', 'Delete snapshot ' + key + '? This cannot be undone.',
     async () => {
-      if (!fbDb) { showToast('Firebase not connected', 'error'); return; }
       try {
-        const _fbUser = window._fbAuth && window._fbAuth.currentUser;
-        const _token  = _fbUser ? await _fbUser.getIdToken() : '';
-        const _auth   = _token ? '?auth=' + encodeURIComponent(_token) : '';
-        const _delHdrs2 = await fbHeaders();
-        await fetch(fbBaseUrl() + '/snapshots/' + key + '.json' + _auth, { method: 'DELETE', headers: _delHdrs2 });
+        await sbDeleteSnapshot(key);
         DB.snapshotIndex = (DB.snapshotIndex || []).filter(s => s.key !== key);
-        scheduleFirebasePush();
         renderSnapshotListSettings();
         renderSnapshotList();
         addLog('snapshot', 'Deleted snapshot ' + key);
@@ -7782,7 +8215,6 @@ async function deleteSnapshotSettings(key) {
 }
 
 async function takeSnapshotFromSettings() {
-  if (!fbDb) { showToast('Firebase not connected', 'error'); return; }
   confirm_('📸', 'Take Snapshot', 'Save a snapshot of all current data?', async () => {
     const key = await takeSnapshot('manual');
     if (key) {
@@ -7796,26 +8228,6 @@ async function takeSnapshotFromSettings() {
   });
 }
 
-function settingsPull() {
-  manualPull();
-  setTimeout(() => {
-    const src = document.getElementById('fbStatus');
-    const dst = document.getElementById('fbStatusModal');
-    if (src && dst) dst.textContent = src.textContent;
-  }, 1800);
-}
-
-function settingsPush() {
-  pushToFirebase();
-  setTimeout(() => {
-    const srcS = document.getElementById('fbStatus');
-    const dstS = document.getElementById('fbStatusModal');
-    if (srcS && dstS) dstS.textContent = srcS.textContent;
-    const srcL = document.getElementById('lastPushInfo');
-    const dstL = document.getElementById('lastPushInfoModal');
-    if (srcL && dstL) dstL.textContent = srcL.textContent;
-  }, 2200);
-}
 </script>
 
 <!-- ============================================================
